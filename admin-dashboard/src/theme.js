@@ -1,0 +1,20 @@
+// src/theme.js
+export const G = {
+  bg:        '#0a0c0f',
+  surface:   '#111318',
+  card:      '#161b22',
+  border:    '#1e2530',
+  borderHi:  '#2a3441',
+  accent:    '#00ff88',
+  accentDim: '#00cc6a',
+  accentBg:  'rgba(0,255,136,0.06)',
+  accentGlow:'rgba(0,255,136,0.15)',
+  muted:     '#4a5568',
+  text:      '#e2e8f0',
+  textSub:   '#718096',
+  danger:    '#ff4757',
+  warn:      '#ffa502',
+  info:      '#3b82f6',
+  purple:    '#8b5cf6',
+  rLg:       '18px',
+};
