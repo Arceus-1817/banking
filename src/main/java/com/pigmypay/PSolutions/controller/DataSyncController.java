@@ -52,7 +52,7 @@ public class DataSyncController {
     @PostMapping("/import")
     public ResponseEntity<?> importManualDrop(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "agentId", required = false) Long agentId,
+            @RequestParam("agentId") Long agentId,
             @RequestHeader("Authorization") String authHeader) {
         try {
             Long tenantId = jwtService.extractTenantId(extractToken(authHeader));

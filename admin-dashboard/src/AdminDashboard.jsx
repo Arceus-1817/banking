@@ -216,7 +216,7 @@ function TickerBar({ stats }) {
 }
 
 // ─── BANK INTEGRATION SYNC TAB ──────────────────────────────────────────────
-function SyncTab({ token: _token, tenantId, authH, onSyncSuccess }) {
+function SyncTab({ token: _token, tenantId, authH, onSyncSuccess, users = [] }) {
   const [logs, setLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -224,6 +224,9 @@ function SyncTab({ token: _token, tenantId, authH, onSyncSuccess }) {
   const [file, setFile] = useState(null);
   const [syncResult, setSyncResult] = useState(null);
   const [error, setError] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+
+  const agents = (users || []).filter(u => u.role === 'AGENT');
 
   // Twilio states
   const [twilioStatus, setTwilioStatus] = useState(null);
@@ -281,6 +284,10 @@ function SyncTab({ token: _token, tenantId, authH, onSyncSuccess }) {
 
   const handleImport = async () => {
     if (!file) return;
+    if (!selectedAgentId) {
+      setError('Please select a field agent to assign these customer files to.');
+      return;
+    }
     setUploading(true);
     setSyncResult(null);
     setError('');
@@ -289,7 +296,7 @@ function SyncTab({ token: _token, tenantId, authH, onSyncSuccess }) {
     formData.append('file', file);
 
     try {
-      const res = await axios.post('http://localhost:8085/api/sync/import', formData, {
+      const res = await axios.post(`http://localhost:8085/api/sync/import?agentId=${selectedAgentId}`, formData, {
         headers: {
           ...authH.headers,
           'Content-Type': 'multipart/form-data'
@@ -360,6 +367,34 @@ function SyncTab({ token: _token, tenantId, authH, onSyncSuccess }) {
             </div>
           </div>
           
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: G.textSub, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+              Assign to Field Agent (Mandatory)
+            </label>
+            <select
+              value={selectedAgentId}
+              onChange={(e) => setSelectedAgentId(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: G.surface,
+                border: `1px solid ${G.border}`,
+                borderRadius: 8,
+                color: G.text,
+                fontSize: 13,
+                fontWeight: 600,
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">-- Select Field Agent --</option>
+              {agents.map(a => (
+                <option key={a.id} value={a.id}>{a.name} ({a.agentEmployeeId || 'No ID'})</option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ background: G.surface, border: `1.5px dashed ${G.borderHi}`, borderRadius: 8, padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', cursor: 'pointer' }}
                onClick={() => document.getElementById('bank-file-input').click()}>
             <input id="bank-file-input" type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleFileChange} />
@@ -390,7 +425,7 @@ function SyncTab({ token: _token, tenantId, authH, onSyncSuccess }) {
             </div>
           )}
 
-          <button className="btn-primary" style={{ marginTop: 'auto', padding: '16px' }} disabled={!file || uploading} onClick={handleImport}>
+          <button className="btn-primary" style={{ marginTop: 'auto', padding: '16px' }} disabled={!file || !selectedAgentId || uploading} onClick={handleImport}>
             {uploading ? 'Processing ETL Pipeline...' : 'Process Bank Drop'}
           </button>
         </div>
@@ -1387,7 +1422,7 @@ export default function AdminDashboard({ user, handleLogout }) {
               TAB: SYNC
               ════════════════════════════════════════════════════════════ */}
           {tab === 'sync' && (
-            <SyncTab token={token} tenantId={tenantId} authH={authH} onSyncSuccess={fetchAll} />
+            <SyncTab token={token} tenantId={tenantId} authH={authH} onSyncSuccess={fetchAll} users={users} />
           )}
 
           {/* ════════════════════════════════════════════════════════════
