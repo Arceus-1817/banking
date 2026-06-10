@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const BASE_URL = 'http://localhost:8085';
@@ -20,7 +20,7 @@ export default function AgentDashboard({ user, handleLogout }) {
   const getAuth = () => ({ headers: { Authorization: `Bearer ${user.token}` } });
   const agentId = user.id || user.userId;
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     setLoadingC(true);
     try {
       const ts = Date.now();
@@ -32,9 +32,9 @@ export default function AgentDashboard({ user, handleLogout }) {
     } catch (e) {
       if (e.response?.status === 401 || e.response?.status === 403) handleLogout();
     } finally { setLoadingC(false); }
-  };
+  }, [agentId]);
 
-  useEffect(() => { fetchCustomers(); }, []);
+  useEffect(() => { Promise.resolve().then(() => fetchCustomers()); }, [fetchCustomers]);
 
   const handleSelectCustomer = async (customer) => {
     setSelected(customer);
@@ -43,12 +43,11 @@ export default function AgentDashboard({ user, handleLogout }) {
     setDepositAmount('');
     setActiveLoan(null);
 
-    const ts = Date.now();
     try {
-      const txRes = await api.get(`/api/transactions/history/${customer.id}?t=${ts}`, getAuth());
+      const txRes = await api.get(`/api/transactions/history/${customer.id}`, getAuth());
       setTransactions(Array.isArray(txRes.data) ? txRes.data : []);
 
-      const loanRes = await api.get(`/api/loans/customer/${customer.id}?t=${ts}`, getAuth());
+      const loanRes = await api.get(`/api/loans/customer/${customer.id}`, getAuth());
       const loans = Array.isArray(loanRes.data) ? loanRes.data : [];
       const active = loans.find(l => l.status === 'ACTIVE');
       if (active) {

@@ -17,8 +17,8 @@ function AgentTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: { backgroundColor: '#111318', borderTopColor: '#1e2530', height: 65, paddingBottom: 10 },
-        tabBarActiveTintColor: '#00ff88',
+        tabBarStyle: { backgroundColor: '#0A1128', borderTopColor: '#1F326D', height: 65, paddingBottom: 10 },
+        tabBarActiveTintColor: '#D4AF37',
         tabBarInactiveTintColor: '#4a5568',
         tabBarIcon: ({ color }) => {
           let iconName;

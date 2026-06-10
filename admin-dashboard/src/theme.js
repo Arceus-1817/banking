@@ -1,20 +1,20 @@
 // src/theme.js
 export const G = {
-  bg:        '#0a0c0f',
-  surface:   '#111318',
-  card:      '#161b22',
-  border:    '#1e2530',
-  borderHi:  '#2a3441',
-  accent:    '#00ff88',
-  accentDim: '#00cc6a',
-  accentBg:  'rgba(0,255,136,0.06)',
-  accentGlow:'rgba(0,255,136,0.15)',
-  muted:     '#4a5568',
-  text:      '#e2e8f0',
-  textSub:   '#718096',
-  danger:    '#ff4757',
-  warn:      '#ffa502',
-  info:      '#3b82f6',
-  purple:    '#8b5cf6',
-  rLg:       '18px',
+  bg:        '#F3F4F6', // Slate Gray background
+  surface:   '#FFFFFF', // Crisp White surface
+  card:      '#FFFFFF', // Crisp White card background
+  border:    '#E2E8F0', // Soft gray border
+  borderHi:  '#CBD5E0', // Highlighted gray border
+  accent:    '#D4AF37', // Champagne Gold accent
+  accentDim: '#AA8222', // Hover gold
+  accentBg:  'rgba(212, 175, 55, 0.08)',
+  accentGlow:'rgba(212, 175, 55, 0.2)',
+  muted:     '#718096',
+  text:      '#0A1128', // Deep Sapphire Navy text
+  textSub:   '#4A5568', // Slate grey secondary text
+  danger:    '#ff4757', // Ruby Red
+  warn:      '#ffa502', // Amber
+  info:      '#3b82f6', // Sapphire Blue
+  purple:    '#8b5cf6', // Purple
+  rLg:       '12px',
 };

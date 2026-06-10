@@ -10,6 +10,11 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * FIXED CRITICAL BUG: isEnabled() and isAccountNonLocked() were hardcoded to return true,
+ * meaning the JwtAuthenticationFilter kill-switch and brute-force lock were completely broken.
+ * Now they correctly use isActive and accountLockedUntil fields.
+ */
 @Data
 @Entity
 @Table(name = "users", indexes = {
@@ -40,6 +45,7 @@ public class User implements UserDetails {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Tenant tenant;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -47,7 +53,7 @@ public class User implements UserDetails {
     private Branch branch;
 
     @Column(unique = true, length = 50)
-    private String agentEmployeeId; // e.g., "PGMY-1001"
+    private String agentEmployeeId;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -77,28 +83,40 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() { return email; }
+
     @Override
     public boolean isAccountNonExpired() { return true; }
+
+    /**
+     * FIXED: Was hardcoded `return true`. Now checks accountLockedUntil timestamp.
+     * This makes JwtAuthenticationFilter's brute-force lockout actually work.
+     */
     @Override
-    public boolean isAccountNonLocked() { return true; }
+    public boolean isAccountNonLocked() {
+        if (accountLockedUntil == null) return true;
+        return LocalDateTime.now().isAfter(accountLockedUntil);
+    }
+
     @Override
     public boolean isCredentialsNonExpired() { return true; }
+
+    /**
+     * FIXED: Was hardcoded `return true`. Now checks isActive flag.
+     * This makes the employee termination kill-switch actually work.
+     */
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() {
+        return isActive != null && isActive;
+    }
 
-
-    // 🚨 SECURITY: Instantly kills their JWT token and app access if set to false
+    // SECURITY: Instantly kills JWT token and app access if set to false
     @Column(nullable = false)
     private Boolean isActive = true;
 
-    // Optional: Tracks when they last opened the app
-    private java.time.LocalDateTime lastLoginAt;
+    // Tracks when they last opened the app
+    private LocalDateTime lastLoginAt;
 
-    // -------------------------------------------------------------
     // ENTERPRISE SECURITY & DEVICE BINDING
-    // -------------------------------------------------------------
-
-    // Locks the agent to a specific company-issued phone or their personal device ID
     @Column(length = 255)
     private String registeredDeviceId;
 
@@ -107,6 +125,36 @@ public class User implements UserDetails {
     private Integer failedLoginAttempts = 0;
 
     // If they fail 5 times, we lock the account until this timestamp
-    private java.time.LocalDateTime accountLockedUntil;
+    private LocalDateTime accountLockedUntil;
 
+    // PAYROLL & COMPENSATION DETAILS
+    @Column(precision = 5, scale = 2, name = "commission_rate")
+    private BigDecimal commissionRate = BigDecimal.ZERO;
+
+    @Column(precision = 12, scale = 2, name = "base_salary")
+    private BigDecimal baseSalary = BigDecimal.ZERO;
+
+    // COMPLIANCE & IDENTITY
+    @Column(length = 10, name = "pan_number")
+    private String panNumber;
+
+    @Column(length = 12, name = "aadhaar_number")
+    private String aadhaarNumber;
+
+    // BANK SETTLEMENT DETAILS
+    @Column(length = 100, name = "bank_name")
+    private String bankName;
+
+    @Column(length = 50, name = "bank_account_number")
+    private String bankAccountNumber;
+
+    @Column(length = 20, name = "bank_ifsc_code")
+    private String bankIfscCode;
+
+    // EMPLOYMENT TIMELINE
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth;
+
+    @Column(name = "date_of_joining")
+    private java.time.LocalDate dateOfJoining;
 }

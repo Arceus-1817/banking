@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { G } from '../../theme';
 
-// ─── Local Helpers ───────────────────────────────────────────────────────────
-const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
-const fmtR = (n) => `₹${fmt(n)}`;
+
 
 function SparkBar({ data = [], color = '#00ff88', height = 36 }) {
   const max = Math.max(...data, 1);
@@ -25,7 +23,7 @@ function AnimCount({ value = 0, prefix = '', dur = 1000 }) {
     const step = end / (dur / 16);
     const t = setInterval(() => { s = Math.min(s + step, end); setDisp(Math.floor(s)); if (s >= end) clearInterval(t); }, 16);
     return () => clearInterval(t);
-  }, [value]);
+  }, [value, dur]);
   return <>{prefix}{disp.toLocaleString('en-IN')}</>;
 }
 
@@ -44,7 +42,7 @@ function StatCard({ label, value, prefix = '', sub, spark, color = '#00ff88', ic
   );
 }
 
-export default function AnalyticsTab({ stats, activity }) {
+export default function AnalyticsTab({ stats, activity: _activity }) {
   const SPARK = [42,38,55,61,48,72,68,80,75,90,88,95];
 
   return (

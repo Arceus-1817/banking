@@ -27,60 +27,73 @@ public class DataExportService {
     @Scheduled(cron = "0 30 23 * * ?") // 11:30 PM Every Night
     public void exportDailyCollectionsToHQ() {
         System.out.println("⏳ [ETL OUTBOUND] Waking up to generate Bank transaction files...");
-
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = LocalDate.now().plusDays(1).atStartOfDay();
-
         List<Tenant> activeTenants = tenantRepository.findByStatus("ACTIVE");
 
         for (Tenant tenant : activeTenants) {
-            String fileName = "exports/tx_journal_" + tenant.getId() + "_" + LocalDate.now() + ".csv";
-            new File("exports").mkdirs();
-
-            DataSyncLog syncLog = new DataSyncLog();
-            syncLog.setTenant(tenant);
-            syncLog.setSyncDirection("OUTBOUND");
-            syncLog.setFileName(fileName);
-
-            try (CSVWriter writer = new CSVWriter(new FileWriter(fileName))) {
-
-                // STANDARD BANKING OUTPUT FORMAT
-                String[] header = {"PigmyTxID", "HQ_Customer_ID", "HQ_Loan_ID", "Amount", "Mode", "Agent_Emp_ID", "Timestamp"};
-                writer.writeNext(header);
-
-                List<Transaction> todayTxns = transactionRepository.findByTenantIdAndTransactionDateBetween(
-                        tenant.getId(), startOfDay, endOfDay);
-
-                for (Transaction tx : todayTxns) {
-                    String hqLoanId = (tx.getAssociatedLoan() != null) ? tx.getAssociatedLoan().getHqLoanId() : "SAVINGS";
-
-                    String[] data = {
-                            tx.getId().toString(),
-                            tx.getCustomer().getHqCustomerId(),
-                            hqLoanId,
-                            tx.getAmount().toString(),
-                            tx.getPaymentMode(),
-                            tx.getAgent().getAgentEmployeeId(),
-                            tx.getTransactionDate().toString()
-                    };
-                    writer.writeNext(data);
-                }
-
-                syncLog.setTotalRecordsFound(todayTxns.size());
-                syncLog.setSuccessfulRecords(todayTxns.size());
-                syncLog.setStatus("SUCCESS");
-
-                System.out.println("✅ [ETL OUTBOUND] Exported " + todayTxns.size() + " transactions for " + tenant.getCompanyName());
-
-                // 🚨 TODO: Upload via SFTP here
-
+            try {
+                exportTenantCollections(tenant);
             } catch (Exception e) {
-                syncLog.setStatus("CRITICAL_FAIL");
-                syncLog.setErrorReport(e.getMessage());
-                System.err.println("❌ [ETL OUTBOUND] Failed export for tenant " + tenant.getId());
-            } finally {
-                syncLogRepository.save(syncLog);
+                System.err.println("❌ [ETL OUTBOUND] Failed nightly export for tenant " + tenant.getId() + ": " + e.getMessage());
             }
+        }
+    }
+
+    public File exportTenantCollections(Tenant tenant) throws Exception {
+        System.out.println("⏳ [ETL OUTBOUND] Exporting transactions for tenant: " + tenant.getCompanyName());
+        
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().plusDays(1).atStartOfDay();
+
+        String fileName = "exports/tx_journal_" + tenant.getId() + "_" + LocalDate.now() + ".csv";
+        File dir = new File("exports");
+        if (!dir.exists()) dir.mkdirs();
+        File file = new File(fileName);
+
+        DataSyncLog syncLog = new DataSyncLog();
+        syncLog.setTenant(tenant);
+        syncLog.setSyncDirection("OUTBOUND");
+        syncLog.setFileName(file.getName());
+
+        try (CSVWriter writer = new CSVWriter(new FileWriter(file))) {
+            // STANDARD BANKING OUTPUT FORMAT
+            String[] header = {"PigmyTxID", "HQ_Customer_ID", "HQ_Loan_ID", "Amount", "Mode", "Agent_Emp_ID", "Timestamp"};
+            writer.writeNext(header);
+
+            List<Transaction> todayTxns = transactionRepository.findByTenantIdAndTransactionDateBetween(
+                    tenant.getId(), startOfDay, endOfDay);
+
+            for (Transaction tx : todayTxns) {
+                String hqLoanId = (tx.getAssociatedLoan() != null) ? tx.getAssociatedLoan().getHqLoanId() : "SAVINGS";
+                String agentEmpId = (tx.getAgent() != null && tx.getAgent().getAgentEmployeeId() != null) 
+                        ? tx.getAgent().getAgentEmployeeId() : "SYSTEM";
+
+                String[] data = {
+                        tx.getId().toString(),
+                        tx.getCustomer() != null ? tx.getCustomer().getHqCustomerId() : "UNKNOWN",
+                        hqLoanId,
+                        tx.getAmount().toString(),
+                        tx.getPaymentMode(),
+                        agentEmpId,
+                        tx.getTransactionDate().toString()
+                };
+                writer.writeNext(data);
+            }
+
+            syncLog.setTotalRecordsFound(todayTxns.size());
+            syncLog.setSuccessfulRecords(todayTxns.size());
+            syncLog.setFailedRecords(0);
+            syncLog.setStatus("SUCCESS");
+
+            System.out.println("✅ [ETL OUTBOUND] Exported " + todayTxns.size() + " transactions for " + tenant.getCompanyName());
+            return file;
+
+        } catch (Exception e) {
+            syncLog.setStatus("CRITICAL_FAIL");
+            syncLog.setErrorReport(e.getMessage());
+            System.err.println("❌ [ETL OUTBOUND] Failed manual export for tenant " + tenant.getId() + ": " + e.getMessage());
+            throw e;
+        } finally {
+            syncLogRepository.save(syncLog);
         }
     }
 }

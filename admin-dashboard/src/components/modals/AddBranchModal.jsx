@@ -19,7 +19,7 @@ export default function AddBranchModal({ onClose, authH, fetchAll, user }) {
       }, authH);
       fetchAll();
       onClose();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to create branch");
     }
     setLoading(false);

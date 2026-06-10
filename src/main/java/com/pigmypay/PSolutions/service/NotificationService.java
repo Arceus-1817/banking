@@ -23,14 +23,56 @@ public class NotificationService {
     @Value("${twilio.whatsapp.number}")
     private String fromWhatsappNumber;
 
+    // FIXED: graceful startup - don't crash if Twilio not configured
+    private boolean twilioEnabled = false;
+
     @PostConstruct
     public void init() {
-        Twilio.init(accountSid, authToken);
-        System.out.println("✅ Twilio WhatsApp Engine Initialized");
+        if (isPlaceholder(accountSid) || isPlaceholder(authToken)) {
+            System.out.println("⚠️  Twilio credentials not configured. WhatsApp notifications disabled.");
+            System.out.println("    Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN env vars to enable.");
+            twilioEnabled = false;
+            return;
+        }
+        try {
+            Twilio.init(accountSid, authToken);
+            twilioEnabled = true;
+            System.out.println("✅ Twilio WhatsApp Engine Initialized");
+        } catch (Exception e) {
+            System.err.println("❌ Twilio initialization failed: " + e.getMessage());
+            twilioEnabled = false;
+        }
     }
 
-    @Async // Runs in the background
+    private boolean isPlaceholder(String value) {
+        return value == null || value.isEmpty() || value.startsWith("PLACEHOLDER");
+    }
+
+    public boolean isTwilioEnabled() {
+        return twilioEnabled;
+    }
+
+    public boolean sendTestWhatsApp(String toPhone, String message) {
+        if (!twilioEnabled) return false;
+        try {
+            String formattedPhone = toPhone.startsWith("+") ? toPhone : "+91" + toPhone;
+            String toWhatsapp = "whatsapp:" + formattedPhone;
+            Message.creator(
+                    new PhoneNumber(toWhatsapp),
+                    new PhoneNumber(fromWhatsappNumber),
+                    message
+            ).create();
+            return true;
+        } catch (Exception e) {
+            System.err.println("❌ Twilio manual test failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    @Async
     public void sendWhatsAppReceipt(Transaction transaction) {
+        if (!twilioEnabled) return;
+
         Customer customer = transaction.getCustomer();
         String rawPhone = customer.getPhoneNumber();
 
@@ -40,37 +82,39 @@ public class NotificationService {
         String toWhatsappNumber = "whatsapp:" + formattedPhone;
         String messageBody;
 
-        if (transaction.getTransactionCategory().equals("LOAN_REPAYMENT")) {
-            Loan loan = transaction.getAssociatedLoan();
-            messageBody = String.format(
-                    "🟢 *PigmyPay Loan Receipt*\n\n" +
-                            "Hello %s,\n" +
-                            "We have received your EMI payment of *₹%s*.\n\n" +
-                            "📋 *A/C:* %s\n" +
-                            "🏦 *Loan ID:* %s\n\n" +
-                            "Collected by Agent: %s\n" +
-                            "Thank you for using PigmyPay!",
-                    customer.getName(), transaction.getAmount(), customer.getAccountNumber(),
-                    loan.getHqLoanId(), transaction.getAgent().getName()
-            );
-        } else {
-            messageBody = String.format(
-                    "🟢 *PigmyPay Savings Receipt*\n\n" +
-                            "Hello %s,\n" +
-                            "We have received your deposit of *₹%s*.\n\n" +
-                            "📋 *A/C:* %s\n" +
-                            "🏦 *Local Balance:* ₹%s\n\n" +
-                            "Collected by Agent: %s\n" +
-                            "Thank you for using PigmyPay!",
-                    customer.getName(), transaction.getAmount(), customer.getAccountNumber(),
-                    customer.getCurrentBalance(), transaction.getAgent().getName()
-            );
-        }
-
         try {
-            Message.creator(new PhoneNumber(toWhatsappNumber), new PhoneNumber(fromWhatsappNumber), messageBody).create();
+            if ("LOAN_REPAYMENT".equals(transaction.getTransactionCategory())) {
+                Loan loan = transaction.getAssociatedLoan();
+                String loanId = loan != null ? loan.getHqLoanId() : "N/A";
+                messageBody = String.format(
+                        "🟢 *PigmyPay Loan Receipt*\n\n" +
+                                "Hello %s,\nEMI payment of *₹%s* received.\n\n" +
+                                "📋 *A/C:* %s\n🏦 *Loan ID:* %s\n" +
+                                "Collected by: %s\nThank you for using PigmyPay!",
+                        customer.getName(), transaction.getAmount(),
+                        customer.getAccountNumber(), loanId,
+                        transaction.getAgent().getName()
+                );
+            } else {
+                messageBody = String.format(
+                        "🟢 *PigmyPay Savings Receipt*\n\n" +
+                                "Hello %s,\nDeposit of *₹%s* received.\n\n" +
+                                "📋 *A/C:* %s\n🏦 *Balance:* ₹%s\n" +
+                                "Collected by: %s\nThank you for using PigmyPay!",
+                        customer.getName(), transaction.getAmount(),
+                        customer.getAccountNumber(), customer.getCurrentBalance(),
+                        transaction.getAgent().getName()
+                );
+            }
+
+            Message.creator(
+                    new PhoneNumber(toWhatsappNumber),
+                    new PhoneNumber(fromWhatsappNumber),
+                    messageBody
+            ).create();
+
         } catch (Exception e) {
-            System.err.println("❌ Failed to send WhatsApp: " + e.getMessage());
+            System.err.println("❌ Failed to send WhatsApp to " + rawPhone + ": " + e.getMessage());
         }
     }
 }

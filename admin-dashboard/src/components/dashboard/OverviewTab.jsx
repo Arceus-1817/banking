@@ -39,7 +39,7 @@ function AnimCount({ value = 0, prefix = '', dur = 1000 }) {
       if (s >= end) clearInterval(t);
     }, 16);
     return () => clearInterval(t);
-  }, [value]);
+  }, [value, dur]);
   return <>{prefix}{disp.toLocaleString('en-IN')}</>;
 }
 

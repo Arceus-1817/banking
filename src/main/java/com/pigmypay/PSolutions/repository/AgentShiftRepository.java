@@ -18,4 +18,7 @@ public interface AgentShiftRepository extends JpaRepository<AgentShift, Long> {
 
     // ADVANCED LOGISTICS: Check if an agent is currently scheduled for a specific date
     List<AgentShift> findByAgentIdAndTenantIdAndStartDateLessThanEqual(Long agentId, Long tenantId, LocalDate date);
+
+    // active shift lookup for route mapping
+    List<AgentShift> findByRouteIdAndStatus(Long routeId, String status);
 }

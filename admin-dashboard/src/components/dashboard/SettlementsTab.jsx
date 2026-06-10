@@ -54,7 +54,7 @@ export default function SettlementsTab({ pendingCash, authH, fetchAll }) {
                       try {
                         await axios.post(`http://localhost:8085/api/settlements/confirm/${agentId}`, {}, authH);
                         fetchAll(); // Refresh the board immediately
-                      } catch (e) {
+                      } catch (_e) {
                         alert("Failed to settle cash. Check your connection.");
                       }
                     }

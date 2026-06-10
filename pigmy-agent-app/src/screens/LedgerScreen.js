@@ -23,7 +23,7 @@ export default function LedgerScreen() {
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Daily Ledger</Text>
         <TouchableOpacity onPress={() => setHelpVisible(true)} style={styles.helpBtn}>
-          <Ionicons name="help-circle-outline" size={28} color="#00ff88" />
+          <Ionicons name="help-circle-outline" size={28} color="#D4AF37" />
         </TouchableOpacity>
       </View>
       
@@ -35,11 +35,11 @@ export default function LedgerScreen() {
       <Text style={styles.sectionTitle}>Financial Breakdown</Text>
       <View style={styles.breakdownContainer}>
         <View style={styles.statBox}>
-          <Ionicons name="cash-outline" size={24} color="#00ff88" style={{marginBottom: 8}} />
+          <Ionicons name="cash-outline" size={24} color="#D4AF37" style={{marginBottom: 8}} />
           <Text style={styles.statLabel}>Cash in Pocket</Text>
           <Text style={styles.statValue}>₹{stats.cash}</Text>
         </View>
-        <View style={[styles.statBox, { backgroundColor: '#111318', borderColor: '#1e2530' }]}>
+        <View style={[styles.statBox, { backgroundColor: '#111C3D', borderColor: '#1F326D' }]}>
           <Ionicons name="phone-portrait-outline" size={24} color="#38bdf8" style={{marginBottom: 8}}/>
           <Text style={styles.statLabel}>UPI Auto-Settled</Text>
           <Text style={styles.statValue}>₹{stats.upi}</Text>
@@ -54,7 +54,7 @@ export default function LedgerScreen() {
         </View>
         <View style={styles.analyticsRow}>
           <Text style={styles.analyticsLabel}>Successful Collections</Text>
-          <Text style={[styles.analyticsData, {color: '#00ff88'}]}>{stats.collected}</Text>
+          <Text style={[styles.analyticsData, {color: '#D4AF37'}]}>{stats.collected}</Text>
         </View>
         <View style={styles.analyticsRow}>
           <Text style={styles.analyticsLabel}>Customers Skipped/Closed</Text>
@@ -105,28 +105,28 @@ export default function LedgerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0c0f', paddingTop: 50, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: '#0A1128', paddingTop: 50, paddingHorizontal: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#e2e8f0' },
-  helpBtn: { padding: 8, backgroundColor: 'rgba(0,255,136,0.1)', borderRadius: 12 },
-  totalCard: { backgroundColor: '#00ff88', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 24 },
-  totalLabel: { color: '#000', fontSize: 12, fontWeight: 'bold', letterSpacing: 1, marginBottom: 8 },
-  totalAmount: { color: '#000', fontSize: 48, fontWeight: '900' },
-  sectionTitle: { fontSize: 14, color: '#4a5568', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, fontWeight: 'bold' },
+  helpBtn: { padding: 8, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderRadius: 12 },
+  totalCard: { backgroundColor: '#D4AF37', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 24 },
+  totalLabel: { color: '#0A1128', fontSize: 12, fontWeight: 'bold', letterSpacing: 1, marginBottom: 8 },
+  totalAmount: { color: '#0A1128', fontSize: 48, fontWeight: '900' },
+  sectionTitle: { fontSize: 14, color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, fontWeight: 'bold' },
   breakdownContainer: { flexDirection: 'row', gap: 16, marginBottom: 24 },
-  statBox: { flex: 1, backgroundColor: '#161b22', borderWidth: 1, borderColor: '#00ff88', borderRadius: 16, padding: 20, alignItems: 'center' },
+  statBox: { flex: 1, backgroundColor: '#15224F', borderWidth: 1, borderColor: '#D4AF37', borderRadius: 16, padding: 20, alignItems: 'center' },
   statLabel: { color: '#718096', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
   statValue: { color: '#e2e8f0', fontSize: 24, fontWeight: 'bold' },
-  analyticsCard: { backgroundColor: '#111318', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#1e2530', marginBottom: 24 },
-  analyticsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e2530' },
+  analyticsCard: { backgroundColor: '#111C3D', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#1F326D', marginBottom: 24 },
+  analyticsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1F326D' },
   analyticsLabel: { color: '#a0aec0', fontSize: 14 },
   analyticsData: { color: '#e2e8f0', fontSize: 16, fontWeight: 'bold' },
   infoBox: { flexDirection: 'row', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 16, borderRadius: 12, alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)', marginBottom: 40 },
   infoText: { color: '#f59e0b', fontSize: 13, flex: 1, lineHeight: 20, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#111318', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#1e2530' },
+  modalContent: { backgroundColor: '#0A1128', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#1F326D' },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#e2e8f0' },
-  helpHeading: { fontSize: 16, fontWeight: 'bold', color: '#00ff88', marginTop: 16, marginBottom: 8 },
+  helpHeading: { fontSize: 16, fontWeight: 'bold', color: '#D4AF37', marginTop: 16, marginBottom: 8 },
   helpText: { fontSize: 14, color: '#a0aec0', lineHeight: 22 }
 });

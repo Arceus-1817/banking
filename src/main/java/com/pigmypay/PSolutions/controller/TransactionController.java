@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @CrossOrigin
+@Transactional(readOnly = true)
 @RequestMapping("/api/transactions")
 public class TransactionController {
 
@@ -63,9 +65,11 @@ public class TransactionController {
             Map<String, Object> response = new HashMap<>();
             response.put("loanId", loan.getId());
             response.put("dailyEmi", loan.getMonthlyEmiAmount());
+            response.put("monthlyEmi", loan.getMonthlyEmiAmount());
             response.put("arrears", loan.getArrearsBalance());
             response.put("penalties", loan.getPenaltyCharges());
             response.put("totalDemandToday", totalDemand);
+            response.put("totalDemandMonth", totalDemand);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -74,6 +78,7 @@ public class TransactionController {
     }
 
     @PostMapping("/deposit")
+    @Transactional
     public ResponseEntity<?> makeDeposit(
             @RequestBody DepositRequest request,
             @RequestHeader("Authorization") String authHeader) {
@@ -119,7 +124,13 @@ public class TransactionController {
                 notificationService.sendWhatsAppReceipt(savedTransaction);
             }
 
-            return ResponseEntity.ok(savedTransaction);
+            return ResponseEntity.ok(Map.of(
+                    "id", savedTransaction.getId(),
+                    "amount", savedTransaction.getAmount(),
+                    "transactionCategory", savedTransaction.getTransactionCategory(),
+                    "paymentMode", savedTransaction.getPaymentMode(),
+                    "transactionDate", savedTransaction.getTransactionDate()
+            ));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -127,6 +138,7 @@ public class TransactionController {
     }
 
     @PostMapping("/loan-emi")
+    @Transactional
     public ResponseEntity<?> payLoanEmi(
             @RequestBody DepositRequest request,
             @RequestHeader("Authorization") String authHeader) {
@@ -197,7 +209,13 @@ public class TransactionController {
 
             transactionRepository.save(emiPayment);
             notificationService.sendWhatsAppReceipt(emiPayment);
-            return ResponseEntity.ok(emiPayment);
+            return ResponseEntity.ok(Map.of(
+                    "id", emiPayment.getId(),
+                    "amount", emiPayment.getAmount(),
+                    "transactionCategory", emiPayment.getTransactionCategory(),
+                    "paymentMode", emiPayment.getPaymentMode(),
+                    "transactionDate", emiPayment.getTransactionDate()
+            ));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.badRequest().body("EMI Payment failed: " + e.getMessage());
@@ -326,6 +344,120 @@ public class TransactionController {
             return ResponseEntity.ok(cloudStats);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/agent/{agentId}/performance")
+    public ResponseEntity<?> getAgentPerformance(
+            @PathVariable Long agentId,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = extractToken(authHeader);
+            Long tokenTenantId = jwtService.extractTenantId(token);
+            String userEmail = jwtService.extractUsername(token);
+
+            User requestingUser = userRepository.findByEmail(userEmail).orElseThrow();
+            User targetAgent = userRepository.findById(agentId)
+                    .orElseThrow(() -> new RuntimeException("Agent not found"));
+
+            // 1. Tenant Isolation check
+            if (!targetAgent.getTenant().getId().equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied");
+            }
+
+            // 2. Manager Branch Isolation check
+            if ("MANAGER".equals(requestingUser.getRole().name())) {
+                if (requestingUser.getBranch() == null || targetAgent.getBranch() == null ||
+                        !requestingUser.getBranch().getId().equals(targetAgent.getBranch().getId())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied");
+                }
+            }
+
+            // Fetch transactions for the agent
+            List<Transaction> txns = transactionRepository.findByAgentIdSafe(agentId);
+
+            // Filter by year and month if provided
+            if (year != null && month != null) {
+                txns = txns.stream().filter(t -> {
+                    LocalDateTime dt = t.getTransactionDate();
+                    return dt.getYear() == year && dt.getMonthValue() == month;
+                }).collect(Collectors.toList());
+            }
+
+            List<Map<String, Object>> result = txns.stream().map(t -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", t.getId());
+                map.put("amount", t.getAmount());
+                map.put("transactionDate", t.getTransactionDate());
+                map.put("paymentMode", t.getPaymentMode());
+                map.put("category", t.getTransactionCategory());
+                map.put("isReversed", t.getIsReversed());
+                map.put("customerName", t.getCustomer() != null ? t.getCustomer().getName() : "Unknown");
+                map.put("customerAccountNumber", t.getCustomer() != null ? t.getCustomer().getAccountNumber() : "Unknown");
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching agent performance: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/tenant/{tenantId}/performance")
+    public ResponseEntity<?> getTenantPerformance(
+            @PathVariable Long tenantId,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = extractToken(authHeader);
+            Long tokenTenantId = jwtService.extractTenantId(token);
+            String userEmail = jwtService.extractUsername(token);
+
+            User requestingUser = userRepository.findByEmail(userEmail).orElseThrow();
+
+            // 1. Tenant Isolation check
+            if (!tenantId.equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied");
+            }
+
+            // Fetch transactions for the tenant
+            List<Transaction> txns;
+            if ("MANAGER".equals(requestingUser.getRole().name()) && requestingUser.getBranch() != null) {
+                // If branch manager, restrict to their branch
+                txns = transactionRepository.findByAgentBranchIdAndTransactionDateAfter(
+                        requestingUser.getBranch().getId(), LocalDateTime.now().minusYears(1));
+            } else {
+                txns = transactionRepository.findByTenantIdOrderByTransactionDateDesc(tenantId);
+            }
+
+            // Filter by year and month if provided
+            if (year != null && month != null) {
+                txns = txns.stream().filter(t -> {
+                    LocalDateTime dt = t.getTransactionDate();
+                    return dt.getYear() == year && dt.getMonthValue() == month;
+                }).collect(Collectors.toList());
+            }
+
+            List<Map<String, Object>> result = txns.stream().map(t -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", t.getId());
+                map.put("amount", t.getAmount());
+                map.put("transactionDate", t.getTransactionDate());
+                map.put("paymentMode", t.getPaymentMode());
+                map.put("category", t.getTransactionCategory());
+                map.put("isReversed", t.getIsReversed());
+                map.put("agentName", t.getAgent() != null ? t.getAgent().getName() : "Unknown");
+                map.put("customerName", t.getCustomer() != null ? t.getCustomer().getName() : "Unknown");
+                map.put("customerAccountNumber", t.getCustomer() != null ? t.getCustomer().getAccountNumber() : "Unknown");
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching tenant performance: " + e.getMessage());
         }
     }
 

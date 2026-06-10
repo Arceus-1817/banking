@@ -43,7 +43,7 @@ export default function HistoryScreen() {
             }));
 
             setLogs(normalizedCloudData);
-        } catch (error) {
+        } catch {
             Alert.alert("Network Error", "Could not reach the server to fetch history.");
             loadLocalData(); // Fall back to offline mode
         } finally {
@@ -56,8 +56,8 @@ export default function HistoryScreen() {
         let iconName = 'cloud-offline-outline';
         let statusText = 'WAITING FOR SYNC';
 
-        if (item.status === 'SYNCED') {
-            statusColor = '#00ff88';
+        if (item.syncStatus === 'SYNCED') {
+            statusColor = '#D4AF37';
             iconName = 'checkmark-done-outline';
             statusText = 'SYNCED FROM PHONE';
         } else if (item.status === 'SKIPPED_CLOSED') {
@@ -114,8 +114,8 @@ export default function HistoryScreen() {
                     style={[styles.toggleBtn, viewMode === 'LOCAL' && styles.toggleActive]}
                     onPress={loadLocalData}
                 >
-                    <Ionicons name="phone-portrait-outline" size={16} color={viewMode === 'LOCAL' ? '#00ff88' : '#718096'} />
-                    <Text style={[styles.toggleText, viewMode === 'LOCAL' && { color: '#00ff88' }]}>Device Log</Text>
+                    <Ionicons name="phone-portrait-outline" size={16} color={viewMode === 'LOCAL' ? '#D4AF37' : '#718096'} />
+                    <Text style={[styles.toggleText, viewMode === 'LOCAL' && { color: '#D4AF37' }]}>Device Log</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -150,19 +150,19 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0a0c0f', paddingTop: 60, paddingHorizontal: 20 },
+    container: { flex: 1, backgroundColor: '#0A1128', paddingTop: 60, paddingHorizontal: 20 },
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#e2e8f0', marginBottom: 20 },
 
     // Toggle Styles
-    toggleContainer: { flexDirection: 'row', backgroundColor: '#111318', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#1e2530' },
+    toggleContainer: { flexDirection: 'row', backgroundColor: '#111C3D', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#1F326D' },
     toggleBtn: { flex: 1, flexDirection: 'row', paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 8, gap: 8 },
-    toggleActive: { backgroundColor: '#161b22', borderWidth: 1, borderColor: 'rgba(0,255,136,0.3)' },
-    toggleActiveCloud: { backgroundColor: '#161b22', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)' },
+    toggleActive: { backgroundColor: '#15224F', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' },
+    toggleActiveCloud: { backgroundColor: '#15224F', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)' },
     toggleText: { color: '#718096', fontSize: 12, fontWeight: 'bold' },
 
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: '#718096', marginTop: 12, fontSize: 14 },
-    logCard: { flexDirection: 'row', backgroundColor: '#111318', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#1e2530', alignItems: 'center' },
+    logCard: { flexDirection: 'row', backgroundColor: '#111C3D', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#1F326D', alignItems: 'center' },
     timeColumn: { alignItems: 'center', width: 60, marginRight: 12 },
     iconCircle: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
     timeText: { color: '#718096', fontSize: 10, fontWeight: 'bold' },
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     badgeText: { fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
-    badgeDark: { backgroundColor: '#161b22', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#1e2530' },
+    badgeDark: { backgroundColor: '#15224F', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#1F326D' },
     badgeTextDark: { color: '#a0aec0', fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
     amountColumn: { justifyContent: 'center', alignItems: 'flex-end', marginLeft: 10 },
     amountText: { color: '#e2e8f0', fontSize: 18, fontWeight: '900' }

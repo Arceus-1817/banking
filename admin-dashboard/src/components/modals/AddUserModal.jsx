@@ -21,7 +21,7 @@ export default function AddUserModal({ onClose, branches, authH, fetchAll, user 
       }, authH);
       fetchAll();
       onClose();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to create user. Email might exist.");
     }
     setLoading(false);

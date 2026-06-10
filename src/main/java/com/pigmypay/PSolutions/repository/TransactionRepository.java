@@ -44,7 +44,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByAgentIdAndSettlementStatus(Long agentId, String status);
 
     // Nightly ETL EXPORT: Grab all transactions that happened today to send back to HQ
-    List<Transaction> findByTenantIdAndTransactionDateBetween(Long tenantId, LocalDateTime start, LocalDateTime end);
+    @Query("SELECT t FROM Transaction t LEFT JOIN FETCH t.associatedLoan LEFT JOIN FETCH t.agent LEFT JOIN FETCH t.customer WHERE t.tenant.id = :tenantId AND t.transactionDate >= :start AND t.transactionDate <= :end")
+    List<Transaction> findByTenantIdAndTransactionDateBetween(@Param("tenantId") Long tenantId, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Helper to calculate total collected against a specific HQ Loan today
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.associatedLoan.id = :loanId AND t.transactionDate >= :startDate AND t.transactionDate <= :endDate AND t.isReversed = false")
@@ -56,7 +57,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     boolean existsByOfflineAppTxId(String offlineAppTxId);
 
-    List<Transaction> findByTenantIdAndSettlementStatus(Long tenantId, String unsettled);
+    @Query("SELECT t FROM Transaction t JOIN FETCH t.agent JOIN FETCH t.tenant WHERE t.tenant.id = :tenantId AND t.settlementStatus = :status")
+    List<Transaction> findByTenantIdAndSettlementStatus(@Param("tenantId") Long tenantId, @Param("status") String status);
 
     // Find all transactions by agent ID, ignoring null agent relationships
     @Query("SELECT t FROM Transaction t WHERE t.agent.id = :agentId ORDER BY t.transactionDate DESC")

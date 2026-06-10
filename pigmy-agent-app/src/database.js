@@ -4,10 +4,7 @@ import * as SQLite from 'expo-sqlite';
 const db = SQLite.openDatabaseSync('pigmypay.db');
 
 export const initDB = () => {
-
-    db.execSync('DROP TABLE IF EXISTS local_customers;');
-    db.execSync('DROP TABLE IF EXISTS pending_sync;');
-
+    // FIXED: Removed DROP TABLE IF EXISTS to prevent critical data loss on app restarts.
     db.execSync(`
     CREATE TABLE IF NOT EXISTS local_customers (
       id INTEGER PRIMARY KEY NOT NULL,
@@ -16,7 +13,7 @@ export const initDB = () => {
       phoneNumber TEXT,
       currentBalance REAL,
       routeSequence INTEGER,
-      activeDailyEmi REAL
+      activeMonthlyEmi REAL
     );
     
     CREATE TABLE IF NOT EXISTS pending_sync (
@@ -26,9 +23,20 @@ export const initDB = () => {
       paymentMode TEXT,
       type TEXT, 
       status TEXT,
+      syncStatus TEXT DEFAULT 'PENDING',
       timestamp TEXT
     );
   `);
+    // Migration check block
+    try { 
+        db.execSync('ALTER TABLE local_customers ADD COLUMN outstandingLoan REAL;'); 
+    } catch{}
+    try { 
+        db.execSync('ALTER TABLE local_customers ADD COLUMN activeMonthlyEmi REAL;'); 
+    } catch{}
+    try { 
+        db.execSync("ALTER TABLE pending_sync ADD COLUMN syncStatus TEXT DEFAULT 'PENDING';"); 
+    } catch{}
     console.log("✅ Local SQLite Database Initialized");
 };
 
@@ -37,23 +45,23 @@ export const saveRouteToLocal = (customers) => {
     db.withTransactionSync(() => {
         db.execSync('DELETE FROM local_customers;');
         const statement = db.prepareSync(
-            // 🚨 Add activeDailyEmi to the INSERT statement
-            'INSERT INTO local_customers (id, name, accountNumber, phoneNumber, currentBalance, routeSequence, activeDailyEmi) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            // FIXED: Naming aligned to activeMonthlyEmi and outstandingLoan
+            'INSERT INTO local_customers (id, name, accountNumber, phoneNumber, currentBalance, routeSequence, activeMonthlyEmi, outstandingLoan) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         for (const c of customers) {
             statement.executeSync([
                 c.id, c.name, c.accountNumber, c.phoneNumber || '',
                 c.currentBalance || 0, c.routeSequence || 99,
-                c.activeDailyEmi || 0 // 🚨 Add this variable
+                c.activeMonthlyEmi || 0, c.outstandingLoan || 0
             ]);
         }
     });
 };
 
-// 🚨 ADD THIS: Safely record an offline transaction to the queue
+// 🚨 Safely record an offline transaction to the queue
 export const saveOfflineTransaction = (customerId, amount, paymentMode, type, status = 'PENDING') => {
     const statement = db.prepareSync(
-        'INSERT INTO pending_sync (customerId, amount, paymentMode, type, status, timestamp) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pending_sync (customerId, amount, paymentMode, type, status, syncStatus, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     statement.executeSync([
         customerId,
@@ -61,17 +69,16 @@ export const saveOfflineTransaction = (customerId, amount, paymentMode, type, st
         paymentMode,
         type,
         status,
+        'PENDING',
         new Date().toISOString()
     ]);
 };
 
-// 🚨 ADD THIS: Wipe the phone clean when an agent logs out!
+// Wipe the phone clean when an agent logs out!
 export const clearLocalData = () => {
     db.execSync('DELETE FROM local_customers;');
-    db.execSync('DELETE FROM pending_sync;'); // 🚨 ADD THIS LINE TO CLEAR THE CLOG
+    db.execSync('DELETE FROM pending_sync;');
     console.log("🧹 Device memory completely wiped.");
-    // Optional: You could also delete pending_sync here, but usually, 
-    // you want to force them to sync before allowing logout so money isn't lost!
 };
 
 // Fetch customers instantly from the phone (no internet required)
@@ -81,20 +88,19 @@ export const getLocalRoute = () => {
 
 // Get the number of transactions waiting to be synced to the cloud
 export const getPendingSyncCount = () => {
-    const result = db.getFirstSync('SELECT COUNT(*) as count FROM pending_sync');
+    const result = db.getFirstSync("SELECT COUNT(*) as count FROM pending_sync WHERE syncStatus = 'PENDING'");
     return result.count;
 };
 
-// 🚨 ADD THESE TWO FUNCTIONS TO THE BOTTOM
-
-// 1. UPDATE THIS: Only grab transactions that haven't been synced yet
+// Only grab transactions that haven't been synced yet
 export const getPendingTransactions = () => {
-  return db.getAllSync("SELECT * FROM pending_sync WHERE status = 'PENDING'");
+  return db.getAllSync("SELECT * FROM pending_sync WHERE syncStatus = 'PENDING'");
 };
 
-// 2. DELETE the old `removePendingTransaction` function and REPLACE it with this:
+// FIXED: Parameterized query to avoid SQL Injection vulnerability
 export const markTransactionSynced = (id) => {
-  db.execSync(`UPDATE pending_sync SET status = 'SYNCED' WHERE id = ${id}`);
+  const statement = db.prepareSync("UPDATE pending_sync SET syncStatus = 'SYNCED' WHERE id = ?");
+  statement.executeSync([id]);
 };
 
 // 3. ADD THIS: The math engine for the Ledger

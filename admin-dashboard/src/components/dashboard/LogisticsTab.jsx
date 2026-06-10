@@ -14,7 +14,7 @@ export default function LogisticsTab({ routes, customers, authH, fetchAll }) {
       try {
         await axios.post('http://localhost:8085/api/routes', { name }, authH);
         fetchAll(); // Refresh routes from backend
-      } catch(e) {
+      } catch(_e) {
         alert("Failed to create route.");
       }
     }
@@ -26,7 +26,7 @@ export default function LogisticsTab({ routes, customers, authH, fetchAll }) {
       await axios.put(`http://localhost:8085/api/customers/route/${selectedRoute.id}/sequence`, orderedIds, authH);
       alert("Sequence Saved Successfully!");
       fetchAll();
-    } catch(e) {
+    } catch(_e) {
       alert("Failed to save sequence");
     }
   };
@@ -36,7 +36,7 @@ export default function LogisticsTab({ routes, customers, authH, fetchAll }) {
       await axios.put(`http://localhost:8085/api/customers/${c.id}/route/null`, {}, authH);
       setRouteCustomers(routeCustomers.filter(rc => rc.id !== c.id));
       fetchAll();
-    } catch(e) {
+    } catch(_e) {
       alert("Failed to remove customer");
     }
   };

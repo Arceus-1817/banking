@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 export default function SuperAdminDashboard({ user, handleLogout }) {
@@ -13,32 +13,42 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPhoneNumber, setAdminPhoneNumber] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  
+  // Extra client settings
+  const [upiId, setUpiId] = useState('');
+  const [upiMerchantName, setUpiMerchantName] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
 
   const validToken = user.token || user.jwt || user.accessToken;
   const authH = { headers: { Authorization: "Bearer " + validToken } };
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const res = await axios.get('http://localhost:8085/api/superadmin/clients', authH);
       setClients(res.data);
-    } catch (e) {
-      console.error("Failed to fetch clients", e);
+    } catch (_e) {
+      console.error("Failed to fetch clients", _e);
     }
-  };
+  }, [validToken]);
 
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => { Promise.resolve().then(() => fetchClients()); }, [fetchClients]);
 
   const handleOnboard = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       await axios.post('http://localhost:8085/api/superadmin/onboard', {
-        companyName, plan, adminName, adminEmail, adminPassword, adminPhoneNumber
+        companyName, plan, adminName, adminEmail, adminPassword, adminPhoneNumber,
+        upiId, upiMerchantName, companyAddress, gstNumber, companyEmail, companyPhone
       }, authH);
 
       alert("Institutional Client Successfully Provisioned.");
       setShowModal(false);
       setCompanyName(''); setAdminName(''); setAdminEmail(''); setAdminPassword(''); setAdminPhoneNumber('');
+      setUpiId(''); setUpiMerchantName(''); setCompanyAddress(''); setGstNumber(''); setCompanyEmail(''); setCompanyPhone('');
       fetchClients();
     } catch (e) {
       alert(e.response?.data || "Failed to onboard client.");
@@ -117,12 +127,12 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
         .sa-dot { width: 8px; height: 8px; border-radius: 50%; background: #38A169; }
 
         /* MODAL */
-        .sa-modal-overlay { position: fixed; inset: 0; background: rgba(10, 17, 40, 0.7); backdrop-filter: blur(8px); display: flex; alignItems: center; justify-content: center; z-index: 1000; }
-        .sa-modal-card { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; width: 100%; max-width: 520px; box-shadow: 0 24px 48px rgba(0,0,0,0.2); overflow: hidden; animation: fadeUp 0.3s ease; }
+        .sa-modal-overlay { position: fixed; inset: 0; background: rgba(10, 17, 40, 0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .sa-modal-card { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; width: 100%; max-width: 520px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 24px 48px rgba(0,0,0,0.2); overflow: hidden; animation: fadeUp 0.3s ease; }
         .sa-modal-header { padding: 24px 32px; border-bottom: 1px solid #E2E8F0; background: #F8F9FA; }
         .sa-modal-title { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; color: #0A1128; margin-bottom: 6px; }
         .sa-modal-desc { font-size: 13px; color: #718096; font-weight: 500; }
-        .sa-modal-body { padding: 32px; }
+        .sa-modal-body { padding: 32px; overflow-y: auto; flex: 1; }
 
         .sa-form-group { margin-bottom: 24px; }
         .sa-form-label { display: block; font-size: 11px; color: #4A5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px; }
@@ -202,7 +212,7 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
                     <div className="sa-cell-id">#{String(c.id).padStart(4, '0')}</div>
                     <div>
                       <div className="sa-cell-name">{c.companyName}</div>
-                      <div className="sa-cell-date">Provisioned: {new Date(c.createdAt || Date.now()).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                      <div className="sa-cell-date">Provisioned: {new Date(c.createdAt || '2026-01-01').toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
                     </div>
                     <div><span className="sa-badge-plan">{c.plan || 'STARTER'}</span></div>
                     <div><span className="sa-badge-status"><div className="sa-dot"/> SECURE & ACTIVE</span></div>
@@ -242,6 +252,20 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
                     <input className="sa-input" required type="email" placeholder="Corporate Email Address" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
                     <input className="sa-input" required type="tel" placeholder="Secure Contact Number" value={adminPhoneNumber} onChange={e => setAdminPhoneNumber(e.target.value)} />
                     <input className="sa-input" required type="password" placeholder="Initial Authorization Password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} />
+                  </div>
+
+                  <div className="sa-form-group">
+                    <label className="sa-form-label">UPI Settings (for Agent QR Codes)</label>
+                    <input className="sa-input" placeholder="UPI ID / VPA (e.g., companyname@icici)" value={upiId} onChange={e => setUpiId(e.target.value)} />
+                    <input className="sa-input" placeholder="UPI Merchant Name" value={upiMerchantName} onChange={e => setUpiMerchantName(e.target.value)} />
+                    <input className="sa-input" placeholder="GST Number (optional)" value={gstNumber} onChange={e => setGstNumber(e.target.value)} />
+                  </div>
+
+                  <div className="sa-form-group">
+                    <label className="sa-form-label">Support & Invoicing Address</label>
+                    <input className="sa-input" placeholder="Corporate Contact Email" type="email" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} />
+                    <input className="sa-input" placeholder="Corporate Contact Phone" type="tel" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} />
+                    <input className="sa-input" placeholder="Registered Company Address" value={companyAddress} onChange={e => setCompanyAddress(e.target.value)} />
                   </div>
 
                   <div style={{ display: 'flex', gap: 16, marginTop: 32 }}>

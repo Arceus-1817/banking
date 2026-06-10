@@ -12,10 +12,13 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Map;
 
 @RestController
 @CrossOrigin
+@Transactional
 @RequestMapping("/api/settlements")
 public class SettlementController {
 

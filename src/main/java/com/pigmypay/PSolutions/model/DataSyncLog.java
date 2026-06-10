@@ -41,6 +41,7 @@ public class DataSyncLog {
     @Column(nullable = false, updatable = false)
     private LocalDateTime syncDate = LocalDateTime.now();
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;

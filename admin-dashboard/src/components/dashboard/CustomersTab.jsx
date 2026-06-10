@@ -4,7 +4,7 @@ import { G } from '../../theme';
 // Local formatter
 const fmtR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
-export default function CustomersTab({ customers, authH, fetchAll }) {
+export default function CustomersTab({ customers }) {
   // We keep the search state localized here so typing doesn't re-render the whole dashboard
   const [searchTerm, setSearchTerm] = useState('');
 

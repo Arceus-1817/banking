@@ -64,6 +64,12 @@ public class SuperAdminController {
             newCompany.setPlan(request.getPlan() != null ? request.getPlan() : "BASIC");
             newCompany.setStatus("ACTIVE");
             newCompany.setCreatedAt(LocalDateTime.now());
+            newCompany.setUpiId(request.getUpiId());
+            newCompany.setUpiMerchantName(request.getUpiMerchantName() != null && !request.getUpiMerchantName().isEmpty() ? request.getUpiMerchantName() : request.getCompanyName());
+            newCompany.setCompanyAddress(request.getCompanyAddress());
+            newCompany.setGstNumber(request.getGstNumber());
+            newCompany.setCompanyEmail(request.getCompanyEmail());
+            newCompany.setCompanyPhone(request.getCompanyPhone());
 
             // 🚨 SATELLITE ETL FIX: Default CSV Mapping so the midnight cron job doesn't crash!
             String defaultMapping = "{\"hqCustomerId\": 0, \"accountNumber\": 1, \"name\": 2, \"hqLoanId\": 3, \"expectedDailyEmi\": 4}";
@@ -108,6 +114,12 @@ public class SuperAdminController {
         private String adminEmail;
         private String adminPassword;
         private String adminPhoneNumber;
+        private String upiId;
+        private String upiMerchantName;
+        private String companyAddress;
+        private String gstNumber;
+        private String companyEmail;
+        private String companyPhone;
 
         public String getCompanyName() { return companyName; }
         public String getPlan() { return plan; }
@@ -115,5 +127,11 @@ public class SuperAdminController {
         public String getAdminEmail() { return adminEmail; }
         public String getAdminPassword() { return adminPassword; }
         public String getAdminPhoneNumber() { return adminPhoneNumber; }
+        public String getUpiId() { return upiId; }
+        public String getUpiMerchantName() { return upiMerchantName; }
+        public String getCompanyAddress() { return companyAddress; }
+        public String getGstNumber() { return gstNumber; }
+        public String getCompanyEmail() { return companyEmail; }
+        public String getCompanyPhone() { return companyPhone; }
     }
 }

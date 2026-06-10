@@ -28,6 +28,24 @@ public class Tenant {
     @Column(columnDefinition = "TEXT", name = "csv_mapping_config")
     private String csvMappingConfig;
 
+    @Column(length = 100, name = "upi_id")
+    private String upiId;
+
+    @Column(length = 150, name = "upi_merchant_name")
+    private String upiMerchantName;
+
+    @Column(length = 255, name = "company_address")
+    private String companyAddress;
+
+    @Column(length = 50, name = "gst_number")
+    private String gstNumber;
+
+    @Column(length = 100, name = "company_email")
+    private String companyEmail;
+
+    @Column(length = 20, name = "company_phone")
+    private String companyPhone;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

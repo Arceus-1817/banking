@@ -34,7 +34,10 @@ public class AuthController {
                     "userId",   user.getId(),
                     "name",     user.getName(),
                     "role",     user.getRole().name(),
-                    "tenantId", user.getTenant() != null ? user.getTenant().getId() : 1L
+                    "tenantId", user.getTenant() != null ? user.getTenant().getId() : 1L,
+                    "tenantName", user.getTenant() != null ? user.getTenant().getCompanyName() : "HQ Institution",
+                    "tenantUpiId", user.getTenant() != null && user.getTenant().getUpiId() != null ? user.getTenant().getUpiId() : "pigmypay@icici",
+                    "tenantUpiMerchantName", user.getTenant() != null && user.getTenant().getUpiMerchantName() != null ? user.getTenant().getUpiMerchantName() : (user.getTenant() != null ? user.getTenant().getCompanyName() : "PigmyPay FinTech")
             ));
 
         } catch (Exception e) {

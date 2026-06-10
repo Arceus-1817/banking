@@ -1,7 +1,5 @@
 import { G } from '../../theme';
 
-const fmtR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
-
 export default function BranchesTab({ branches, stats, setShowAddBranch }) {
   return (
     <div>
