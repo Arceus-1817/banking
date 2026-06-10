@@ -157,4 +157,105 @@ public class StatsController {
                 "agentCollections", agentCollections
         ));
     }
+
+    private int calculateAgentStreak(Long agentId) {
+        List<Transaction> txns = transactionRepository.findByAgentIdSafe(agentId);
+        if (txns.isEmpty()) return 0;
+        
+        java.util.Set<java.time.LocalDate> activeDates = txns.stream()
+                .filter(t -> !t.getIsReversed() && !t.getTransactionCategory().startsWith("SKIPPED"))
+                .map(t -> t.getTransactionDate().toLocalDate())
+                .collect(Collectors.toSet());
+                
+        if (activeDates.isEmpty()) return 0;
+        
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.LocalDate yesterday = today.minusDays(1);
+        
+        // Streak must be active either today or yesterday
+        if (!activeDates.contains(today) && !activeDates.contains(yesterday)) {
+            return 0;
+        }
+        
+        int streak = 0;
+        java.time.LocalDate current = activeDates.contains(today) ? today : yesterday;
+        
+        while (activeDates.contains(current)) {
+            streak++;
+            current = current.minusDays(1);
+        }
+        return streak;
+    }
+
+    @GetMapping("/leaderboard")
+    public ResponseEntity<?> getWeeklyLeaderboard(@RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = extractToken(authHeader);
+            String userEmail = jwtService.extractUsername(token);
+            User requestingUser = userRepository.findByEmail(userEmail).orElseThrow();
+            Long tenantId = requestingUser.getTenant().getId();
+
+            List<User> agents = userRepository.findByTenantId(tenantId).stream()
+                    .filter(u -> "AGENT".equals(u.getRole().name()))
+                    .toList();
+
+            LocalDateTime oneWeekAgo = LocalDateTime.now().minusDays(7);
+            
+            List<Map<String, Object>> standings = new java.util.ArrayList<>();
+
+            for (User agent : agents) {
+                // Fetch transactions for this agent in the last 7 days
+                List<Transaction> txns = transactionRepository.findByAgentIdSafe(agent.getId()).stream()
+                        .filter(t -> t.getTransactionDate().isAfter(oneWeekAgo))
+                        .filter(t -> !t.getIsReversed())
+                        .filter(t -> "SAVINGS_DEPOSIT".equals(t.getTransactionCategory()) || "LOAN_REPAYMENT".equals(t.getTransactionCategory()))
+                        .toList();
+
+                BigDecimal totalCollected = txns.stream()
+                        .map(Transaction::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                int collectionsCount = txns.size();
+                int streak = calculateAgentStreak(agent.getId());
+
+                Map<String, Object> agentStats = new java.util.HashMap<>();
+                agentStats.put("agentId", agent.getId());
+                agentStats.put("agentName", agent.getName());
+                agentStats.put("agentEmail", agent.getEmail());
+                agentStats.put("weeklyVolume", totalCollected);
+                agentStats.put("weeklyCount", collectionsCount);
+                agentStats.put("streak", streak);
+                
+                standings.add(agentStats);
+            }
+
+            // Sort by weeklyVolume descending, then weeklyCount descending
+            standings.sort((a, b) -> {
+                BigDecimal volA = (BigDecimal) a.get("weeklyVolume");
+                BigDecimal volB = (BigDecimal) b.get("weeklyVolume");
+                int cmp = volB.compareTo(volA);
+                if (cmp != 0) return cmp;
+                
+                Integer cntA = (Integer) a.get("weeklyCount");
+                Integer cntB = (Integer) b.get("weeklyCount");
+                return cntB.compareTo(cntA);
+            });
+
+            // Assign ranks and trophies
+            for (int i = 0; i < standings.size(); i++) {
+                Map<String, Object> s = standings.get(i);
+                int rank = i + 1;
+                s.put("rank", rank);
+                String trophy = "";
+                if (rank == 1) trophy = "🏆";
+                else if (rank == 2) trophy = "🥈";
+                else if (rank == 3) trophy = "🥉";
+                s.put("trophy", trophy);
+            }
+
+            return ResponseEntity.ok(standings);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Leaderboard error: " + e.getMessage());
+        }
+    }
 }

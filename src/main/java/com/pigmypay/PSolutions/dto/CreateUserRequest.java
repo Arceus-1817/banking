@@ -15,6 +15,7 @@ public class CreateUserRequest {
     // PAYROLL & IDENTITY
     private BigDecimal commissionRate;
     private BigDecimal baseSalary;
+    private BigDecimal dailyCollectionLimit;
     private String panNumber;
     private String aadhaarNumber;
     private String bankName;

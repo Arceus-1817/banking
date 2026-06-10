@@ -11,6 +11,8 @@ import com.pigmypay.PSolutions.repository.CustomerRepository;
 import com.pigmypay.PSolutions.repository.DataSyncLogRepository;
 import com.pigmypay.PSolutions.repository.LoanRepository;
 import com.pigmypay.PSolutions.repository.TenantRepository;
+import com.pigmypay.PSolutions.model.User;
+import com.pigmypay.PSolutions.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ public class DataImportService {
 
     @Autowired private TenantRepository tenantRepository;
     @Autowired private CustomerRepository customerRepository;
+    @Autowired private UserRepository userRepository;
     @Autowired private LoanRepository loanRepository;
     @Autowired private DataSyncLogRepository syncLogRepository;
     @Autowired private PlatformTransactionManager transactionManager;
@@ -47,7 +50,7 @@ public class DataImportService {
             if (!file.exists()) continue;
 
             try {
-                importTenantBankDrop(tenant, file);
+                importTenantBankDrop(tenant, file, null);
             } catch (Exception e) {
                 System.err.println("❌ [ETL INBOUND] Failed nightly import for tenant " + tenant.getId() + ": " + e.getMessage());
             }
@@ -76,7 +79,7 @@ public class DataImportService {
                 Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
                 if (tenant != null && tenant.getStatus().equals("ACTIVE")) {
                     System.out.println("⚡ [ETL WATCHER] Detected new drop file: " + name + ". Starting ingestion...");
-                    importTenantBankDrop(tenant, file);
+                    importTenantBankDrop(tenant, file, null);
                 } else {
                     System.out.println("⚠️ [ETL WATCHER] Skipping file " + name + " (Tenant not found or inactive)");
                     file.delete();
@@ -87,7 +90,7 @@ public class DataImportService {
         }
     }
 
-    public DataSyncLog importTenantBankDrop(Tenant tenant, File file) throws Exception {
+    public DataSyncLog importTenantBankDrop(Tenant tenant, File file, Long overrideAgentId) throws Exception {
         System.out.println("⏳ [ETL INBOUND] Processing import file: " + file.getName() + " for tenant: " + tenant.getCompanyName());
         
         DataSyncLog syncLog = new DataSyncLog();
@@ -130,6 +133,8 @@ public class DataImportService {
                             columnMap.put("totalAmountDue", i);
                         } else if (h.equals("interest_rate") || h.equals("interest") || h.equals("interestrate") || h.equals("rate")) {
                             columnMap.put("interestRate", i);
+                        } else if (h.equals("agent_email") || h.equals("agentemail") || h.equals("agent_id") || h.equals("agentid") || h.equals("agent_employee_id") || h.equals("agentemployeeid") || h.equals("agent")) {
+                            columnMap.put("agentIdentifier", i);
                         }
                     }
 
@@ -166,6 +171,25 @@ public class DataImportService {
                             try { dueToday = new BigDecimal(line[emiIdx].trim()); } catch (Exception e) {}
                         }
 
+                        // Resolve the agent to assign
+                        User assignedAgent = null;
+                        if (overrideAgentId != null) {
+                            assignedAgent = userRepository.findById(overrideAgentId).orElse(null);
+                        } else {
+                            Integer agentIdx = columnMap.get("agentIdentifier");
+                            String agentIdentifier = (agentIdx != null && agentIdx < line.length) ? line[agentIdx].trim() : "";
+                            if (!agentIdentifier.isEmpty()) {
+                                try {
+                                    Long agentDbId = Long.parseLong(agentIdentifier);
+                                    assignedAgent = userRepository.findById(agentDbId).orElse(null);
+                                } catch (NumberFormatException e) {
+                                    final String ident = agentIdentifier;
+                                    assignedAgent = userRepository.findByEmail(ident)
+                                            .orElseGet(() -> userRepository.findByAgentEmployeeIdAndTenantId(ident, tenant.getId()).orElse(null));
+                                }
+                            }
+                        }
+
                         // Update or Create Customer
                         Customer customer = customerRepository.findByHqCustomerIdAndTenantId(hqCustId, tenant.getId())
                                 .orElse(new Customer());
@@ -174,6 +198,9 @@ public class DataImportService {
                         customer.setAccountNumber(accNum);
                         customer.setTenant(tenant);
                         customer.setStatus("ACTIVE");
+                        if (assignedAgent != null && assignedAgent.getTenant().getId().equals(tenant.getId())) {
+                            customer.setAssignedAgent(assignedAgent);
+                        }
 
                         customer = customerRepository.save(customer);
 

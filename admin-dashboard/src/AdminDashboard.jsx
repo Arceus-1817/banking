@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
+import LocalChatbot from './components/dashboard/LocalChatbot';
 
 // ─── Design Tokens (Premium FinTech Theme) ──────────────────────────────────
 // ─── Design Tokens (Premium FinTech Theme) ──────────────────────────────────
@@ -613,6 +614,29 @@ function EditUserModal({ user, agent, branches, token, onSuccess, onClose }) {
   const [loading,  setLoading] = useState(false);
   const [error,    setError]   = useState('');
   const [success,  setSuccess] = useState('');
+  const [manualDevice, setManualDevice] = useState(agent.registeredDeviceId || '');
+
+  const handleManualDeviceBind = async () => {
+    if (loading) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      await axios.put(`http://localhost:8085/api/users/${agent.id}/manual-device-id`, { deviceId: manualDevice }, authH);
+      setSuccess('Device ID bound manually.');
+      await onSuccess();
+    } catch (e) { setError(e.response?.data?.message || 'Manual binding failed.'); }
+    finally { setLoading(false); }
+  };
+
+  const handleApproveDevice = async () => {
+    if (loading) return;
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      await axios.post(`http://localhost:8085/api/users/${agent.id}/approve-device`, {}, authH);
+      setSuccess('Device binding approved successfully.');
+      await onSuccess();
+    } catch (e) { setError(e.response?.data?.message || 'Approval failed.'); }
+    finally { setLoading(false); }
+  };
 
   // Payroll & Identity states
   const [commissionRate, setCommissionRate] = useState(agent.commissionRate !== undefined ? String(agent.commissionRate) : '0');
@@ -644,7 +668,9 @@ function EditUserModal({ user, agent, branches, token, onSuccess, onClose }) {
       }, authH);
       setSuccess('User identity updated successfully.');
       await onSuccess();
-    } catch (e) { setError(e.response?.data?.message || 'Update failed.'); }
+    } catch (e) {
+      setError(e.response?.data?.message || (typeof e.response?.data === 'string' ? e.response?.data : null) || 'Update failed.');
+    }
     finally { setLoading(false); }
   };
 
@@ -715,6 +741,73 @@ function EditUserModal({ user, agent, branches, token, onSuccess, onClose }) {
         </div>
       </div>
 
+      {agent.role === 'AGENT' && (
+        <div style={{ background: G.surface, border: `1px solid ${G.border}`, borderRadius: 4, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize:12, color:G.text, fontWeight: 700, letterSpacing:'.05em', textTransform:'uppercase', marginBottom:12 }}>Device Security Binding</div>
+          
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 12, marginBottom: 16 }}>
+            <span style={{ fontSize:13, color:G.textSub }}>
+              {agent.registeredDeviceId ? `Bound: ${agent.registeredDeviceId.substring(0, 18)}...` : 'No device currently bound.'}
+            </span>
+            <button className="btn-warn" style={{ padding: '8px 16px' }} onClick={async () => {
+              if (window.confirm(`Unbind app for agent ${agent.name}? They will need to verify via mobile OTP on next login.`)) {
+                setLoading(true); setError(''); setSuccess('');
+                try {
+                  await axios.patch(`http://localhost:8085/api/users/${agent.id}/reset-device`, {}, authH);
+                  setSuccess('Device security binding cleared successfully.');
+                  setManualDevice('');
+                  await onSuccess();
+                } catch (e) {
+                  setError(e.response?.data?.message || 'Unbind failed.');
+                } finally {
+                  setLoading(false);
+                }
+              }
+            }} disabled={loading || !agent.registeredDeviceId}>
+              Clear Bind
+            </button>
+          </div>
+
+          {/* Pending Device Connection Requests */}
+          {agent.pendingDeviceId ? (
+            <div style={{ border: `1px solid ${G.accent}44`, background: `rgba(0, 255, 136, 0.05)`, padding: 12, borderRadius: 4, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: G.accent, textTransform: 'uppercase', marginBottom: 4 }}>Pending Device Connection Request</div>
+              <div style={{ fontSize: 13, color: G.text, marginBottom: 8, wordBreak: 'break-all' }}>
+                <strong>Device:</strong> {agent.pendingDeviceId}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#070D1F', padding: 10, borderRadius: 4, marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: G.textSub }}>VERIFICATION CODE:</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: G.accent, letterSpacing: '2px' }}>{agent.mobileVerificationOtp || 'N/A'}</div>
+                </div>
+                <div style={{ fontSize: 11, color: G.textSub, textAlign: 'right' }}>
+                  Expires: {agent.mobileVerificationOtpExpiresAt ? new Date(agent.mobileVerificationOtpExpiresAt).toLocaleTimeString() : 'N/A'}
+                </div>
+              </div>
+              <button className="btn-primary" style={{ width: '100%', padding: '10px' }} onClick={handleApproveDevice} disabled={loading}>
+                Approve & Bind Device (Bypass OTP)
+              </button>
+            </div>
+          ) : (
+            <div style={{ border: `1px dashed ${G.border}`, padding: 12, borderRadius: 4, fontSize: 12, color: G.textSub, lineHeight: 1.5, background: 'rgba(255,255,255,0.01)', marginBottom: 16 }}>
+              <strong style={{ color: G.warn, display: 'block', marginBottom: 4 }}>💡 Twilio OTP Bypass Instructions:</strong>
+              To authorize a new device or view a verification OTP here, the field agent must first attempt a login using their email and password on the mobile app. This will automatically generate a pending connection request and display the OTP/approval button here.
+            </div>
+          )}
+
+          {/* Manual Device Override */}
+          <div style={{ borderTop: `1px solid ${G.border}`, paddingTop: 16, marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: G.textSub, textTransform: 'uppercase', marginBottom: 8 }}>Manual Device Override</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input type="text" value={manualDevice} onChange={e => setManualDevice(e.target.value)} placeholder="Enter Device ID manually" style={{ flex: 1, fontSize: 12 }} />
+              <button className="btn-ghost" style={{ padding: '8px 16px', fontSize: 12 }} onClick={handleManualDeviceBind} disabled={loading}>
+                Force Bind
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error   && <div style={{ background: 'rgba(255, 71, 87, 0.1)', border: `1px solid ${G.danger}33`, color: G.danger, borderRadius:4, padding:'12px 16px', fontSize:13, marginBottom:16, fontWeight:500 }}>{error}</div>}
       {success && <div style={{ background: 'rgba(0, 255, 136, 0.1)', border: `1px solid ${G.accent}33`, color: G.accent, borderRadius:4, padding:'12px 16px', fontSize:13, marginBottom:16, fontWeight:500 }}>{success}</div>}
 
@@ -735,6 +828,8 @@ function CustomerProfileModal({ customer, token, onSuccess, onClose: _onClose })
   const [address, setAddress] = useState(customer.residentialAddress || '');
   const [gName, setGName] = useState(customer.guarantorName || '');
   const [gPhone, setGPhone] = useState(customer.guarantorPhoneNumber || '');
+  const [custName, setCustName] = useState(customer.name || '');
+  const [custPhone, setCustPhone] = useState(customer.phoneNumber || '');
   const [principal, setPrincipal] = useState('');
   const [interestRate, setInterestRate] = useState('10');
   const [tenureMonths, setTenureMonths] = useState('12');
@@ -753,6 +848,7 @@ function CustomerProfileModal({ customer, token, onSuccess, onClose: _onClose })
     setLoading(true);
     try {
       await axios.put(`http://localhost:8085/api/customers/${customer.id}/kyc`, {
+        name: custName, phoneNumber: custPhone,
         aadharNumber: aadhar, panNumber: pan, residentialAddress: address, guarantorName: gName, guarantorPhoneNumber: gPhone
       }, authH);
       alert('KYC Ledger Updated Successfully.');
@@ -788,9 +884,18 @@ function CustomerProfileModal({ customer, token, onSuccess, onClose: _onClose })
         </div>
         <div>
           <div style={{ fontSize:22, fontWeight:700, color:G.text, fontFamily:'var(--font-display)', marginBottom:4 }}>{customer.name}</div>
-          <div style={{ fontSize:13, color:G.textSub, fontWeight:500 }}>
-            A/C: <span style={{ color: G.text, fontFamily: 'monospace' }}>{customer.accountNumber}</span> &nbsp;·&nbsp;
-            <span className={customer.kycStatus === 'VERIFIED' ? 'tag tag-green' : 'tag tag-amber'}>{customer.kycStatus || 'PENDING KYC'}</span>
+          <div style={{ fontSize:13, color:G.textSub, fontWeight:500, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div>
+              A/C: <span style={{ color: G.text, fontFamily: 'monospace' }}>{customer.accountNumber}</span> &nbsp;·&nbsp;
+              <span className={customer.kycStatus === 'VERIFIED' ? 'tag tag-green' : 'tag tag-amber'}>{customer.kycStatus || 'PENDING KYC'}</span>
+            </div>
+            <div style={{ fontSize:12, color:G.textSub, fontWeight:500 }}>
+              {customer.assignedAgent ? (
+                <span style={{ color: G.accent }}>👤 Assigned Agent: <strong>{customer.assignedAgent.name}</strong></span>
+              ) : (
+                <span style={{ color: G.warn }}>👤 Agent: <strong>Unassigned</strong></span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -835,6 +940,8 @@ function CustomerProfileModal({ customer, token, onSuccess, onClose: _onClose })
       {tab === 'kyc' && (
         <div className="fade-up">
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 20px' }}>
+            {field('Customer Name', custName, setCustName, { placeholder: 'Full Legal Name' })}
+            {field('Phone Number', custPhone, setCustPhone, { placeholder: 'Contact Number' })}
             {field('Aadhar Number', aadhar, setAadhar, { placeholder: '12-digit UIDAI' })}
             {field('PAN Card', pan, setPan, { placeholder: '10-char Alphanumeric' })}
             <div style={{ gridColumn:'1 / -1' }}>{field('Registered Address', address, setAddress, { placeholder: 'Full documented address' })}</div>
@@ -852,15 +959,19 @@ function CustomerProfileModal({ customer, token, onSuccess, onClose: _onClose })
   );
 }
 
-const LogisticsMap = ({ selectedRoute, customers, authH: _authH, onCoordinatesUpdate }) => {
+const LogisticsMap = ({ selectedRoute, selectedAgent, customers, authH: _authH, onCoordinatesUpdate }) => {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
 
   useEffect(() => {
     if (!window.L || !mapRef.current) return;
+    if (!selectedRoute && !selectedAgent) return;
 
-    const routeCusts = customers.filter(c => c.route?.id === selectedRoute.id && c.latitude && c.longitude)
-      .sort((a,b) => (a.routeSequence||0) - (b.routeSequence||0));
+    const routeCusts = customers.filter(c => {
+      if (selectedRoute) return c.route?.id === selectedRoute.id && c.latitude && c.longitude;
+      if (selectedAgent) return c.assignedAgent?.id === selectedAgent.id && c.latitude && c.longitude;
+      return false;
+    }).sort((a,b) => (a.routeSequence||0) - (b.routeSequence||0));
 
     if (leafletMapRef.current) {
       leafletMapRef.current.remove();
@@ -905,11 +1016,15 @@ const LogisticsMap = ({ selectedRoute, customers, authH: _authH, onCoordinatesUp
       const { lat, lng } = e.latlng;
       const customerName = window.prompt(`Update coordinates at clicked location (${lat.toFixed(5)}, ${lng.toFixed(5)})?\nEnter customer Name or ID to assign:`);
       if (customerName) {
-        const cust = customers.find(c => c.route?.id === selectedRoute.id && c.name.toLowerCase().includes(customerName.toLowerCase()));
+        const cust = customers.find(c => {
+          if (selectedRoute) return c.route?.id === selectedRoute.id && c.name.toLowerCase().includes(customerName.toLowerCase());
+          if (selectedAgent) return c.assignedAgent?.id === selectedAgent.id && c.name.toLowerCase().includes(customerName.toLowerCase());
+          return false;
+        });
         if (cust) {
           onCoordinatesUpdate(cust.id, lat, lng);
         } else {
-          alert("Customer not found in this route.");
+          alert("Customer not found.");
         }
       }
     });
@@ -920,7 +1035,7 @@ const LogisticsMap = ({ selectedRoute, customers, authH: _authH, onCoordinatesUp
         leafletMapRef.current = null;
       }
     };
-  }, [selectedRoute, customers, onCoordinatesUpdate]);
+  }, [selectedRoute, selectedAgent, customers, onCoordinatesUpdate]);
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -945,6 +1060,24 @@ export default function AdminDashboard({ user, handleLogout }) {
   const [routes, setRoutes] = useState([]);
   const [pendingLoans, setPendingLoans] = useState([]);
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [logisticsView, setLogisticsView] = useState('routes'); // 'routes' or 'agents'
+  const [selectedAgentForLogistics, setSelectedAgentForLogistics] = useState(null);
+  const [localSequenceOrder, setLocalSequenceOrder] = useState(null);
+  const [draggedAgentIdx, setDraggedAgentIdx] = useState(null);
+
+  const agentCustomers = useMemo(() => {
+    if (!selectedAgentForLogistics) return [];
+    const filtered = customers.filter(c => c.assignedAgent?.id === selectedAgentForLogistics.id);
+    if (localSequenceOrder) {
+      const idToIndex = new Map(localSequenceOrder.map((id, idx) => [id, idx]));
+      return [...filtered].sort((a, b) => {
+        const idxA = idToIndex.has(a.id) ? idToIndex.get(a.id) : 999;
+        const idxB = idToIndex.has(b.id) ? idToIndex.get(b.id) : 999;
+        return idxA - idxB;
+      });
+    }
+    return [...filtered].sort((a, b) => (a.routeSequence || 999) - (b.routeSequence || 999));
+  }, [customers, selectedAgentForLogistics, localSequenceOrder]);
   const [auditLogs, setAuditLogs]         = useState([]);
 
   const [tab, setTab]             = useState('overview');
@@ -1049,6 +1182,8 @@ export default function AdminDashboard({ user, handleLogout }) {
   };
 
   useEffect(() => { Promise.resolve().then(() => fetchAll()); }, []);
+
+  // Derived agentCustomers dynamically via useMemo to avoid setState inside effect
 
   const handleRecalculateRisk = async () => {
     try {
@@ -1822,152 +1957,394 @@ export default function AdminDashboard({ user, handleLogout }) {
                 }}>Define New Route</button>
               </div>
 
-              <div className="fade-up-1" style={{ display:'grid', gridTemplateColumns:'340px 1fr', gap:24 }}>
-                {/* LEFT: ROUTE LIST */}
-                <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                  <h3 style={{ fontSize:14, color:G.text, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Active Geographies</h3>
-                  {routes.length === 0 ? (
-                    <div style={{ padding:40, textAlign:'center', background:G.card, border:`1px dashed ${G.borderHi}`, borderRadius:G.rLg, color:G.muted, fontSize:13, fontStyle: 'italic' }}>
-                      No routes defined.
-                    </div>
-                  ) : routes.map(r => {
-                    const routeCusts = customers.filter(c => c.route?.id === r.id);
-                    const isSelected = selectedRoute?.id === r.id;
-                    return (
-                      <div key={r.id} onClick={() => setSelectedRoute(r)} style={{
-                        padding:'20px 24px', background:isSelected ? G.accentBg : G.surface,
-                        border:`1px solid ${isSelected ? G.accent : G.border}`,
-                        borderRadius:4, cursor:'pointer', transition:'all .2s',
-                        borderLeft: isSelected ? `4px solid ${G.accent}` : `1px solid ${G.border}`
-                      }}>
-                        <div style={{ fontWeight:700, color:isSelected ? G.accentDim : G.text, fontFamily:'var(--font-display)', fontSize:18 }}>
-                          {r.routeName || r.name}
-                        </div>
-                        <div style={{ fontSize:12, color:G.textSub, marginTop:8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <span>{routeCusts.length} accounts assigned</span>
-                          {r.assignedAgent && (
-                            <span style={{ fontSize:10, color:G.accent, background:G.accentBg, padding:'2px 6px', borderRadius:4, fontWeight:700 }}>
-                              👤 {r.assignedAgent.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* View Toggle Buttons */}
+              <div className="fade-up-1" style={{ display: 'flex', gap: 12, marginBottom: 24, background: G.surface, padding: 4, borderRadius: 6, border: `1px solid ${G.border}`, width: 'fit-content' }}>
+                <button onClick={() => { setLogisticsView('routes'); setSelectedRoute(null); setSelectedAgentForLogistics(null); setLocalSequenceOrder(null); }} style={{
+                  padding: '8px 16px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                  background: logisticsView === 'routes' ? G.card : 'transparent',
+                  color: logisticsView === 'routes' ? G.text : G.textSub,
+                  cursor: 'pointer', border: 'none', transition: 'all .2s'
+                }}>View by Route</button>
+                <button onClick={() => { setLogisticsView('agents'); setSelectedRoute(null); setSelectedAgentForLogistics(null); setLocalSequenceOrder(null); }} style={{
+                  padding: '8px 16px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                  background: logisticsView === 'agents' ? G.card : 'transparent',
+                  color: logisticsView === 'agents' ? G.text : G.textSub,
+                  cursor: 'pointer', border: 'none', transition: 'all .2s'
+                }}>View by Agent</button>
+              </div>
 
-                {/* RIGHT: ROUTE DETAILS */}
-                <div style={{ background:G.card, border:`1px solid ${G.border}`, borderRadius:G.rLg, padding:32, display:'flex', flexDirection:'column', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
-                  {!selectedRoute ? (
-                    <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:G.muted, fontSize:14, fontStyle: 'italic' }}>
-                      <div style={{ fontSize:40, marginBottom:16, opacity: 0.5 }}>🗺️</div>
-                      Select a geography from the index to configure logistics.
-                    </div>
-                  ) : (
-                    <div className="fade-up">
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:28, paddingBottom:24, borderBottom:`1px solid ${G.border}` }}>
-                        <div>
-                          <h2 style={{ fontFamily:'var(--font-display)', fontSize:24, fontWeight:700, color:G.text }}>{selectedRoute.routeName || selectedRoute.name}</h2>
-                          <div style={{ fontSize:13, color:G.textSub, marginTop:6, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span>Configure sequence and assign operative.</span>
-                            {selectedRoute.assignedAgent && (
-                              <span style={{ fontSize:11, color:G.accentDim, background:G.accentBg, padding:'2px 8px', borderRadius:4, fontWeight:700 }}>
-                                Dispatched Operative: {selectedRoute.assignedAgent.name}
+              <div className="fade-up-2" style={{ display:'grid', gridTemplateColumns:'340px 1fr', gap:24 }}>
+                
+                {/* LEFT COLUMN: ROUTES OR AGENTS */}
+                {logisticsView === 'routes' ? (
+                  <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                    <h3 style={{ fontSize:14, color:G.text, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Active Geographies</h3>
+                    {routes.length === 0 ? (
+                      <div style={{ padding:40, textAlign:'center', background:G.card, border:`1px dashed ${G.borderHi}`, borderRadius:G.rLg, color:G.muted, fontSize:13, fontStyle: 'italic' }}>
+                        No routes defined.
+                      </div>
+                    ) : routes.map(r => {
+                      const routeCusts = customers.filter(c => c.route?.id === r.id);
+                      const isSelected = selectedRoute?.id === r.id;
+                      return (
+                        <div key={r.id} onClick={() => setSelectedRoute(r)} style={{
+                          padding:'20px 24px', background:isSelected ? G.accentBg : G.surface,
+                          border:`1px solid ${isSelected ? G.accent : G.border}`,
+                          borderRadius:4, cursor:'pointer', transition:'all .2s',
+                          borderLeft: isSelected ? `4px solid ${G.accent}` : `1px solid ${G.border}`
+                        }}>
+                          <div style={{ fontWeight:700, color:isSelected ? G.accentDim : G.text, fontFamily:'var(--font-display)', fontSize:18 }}>
+                            {r.routeName || r.name}
+                          </div>
+                          <div style={{ fontSize:12, color:G.textSub, marginTop:8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span>{routeCusts.length} accounts assigned</span>
+                            {r.assignedAgent && (
+                              <span style={{ fontSize:10, color:G.accent, background:G.accentBg, padding:'2px 6px', borderRadius:4, fontWeight:700 }}>
+                                👤 {r.assignedAgent.name}
                               </span>
                             )}
                           </div>
                         </div>
-                        <button className="btn-primary" style={{ background: G.info, color: '#FFF' }} onClick={async () => {
-                          const agentId = window.prompt(`Dispatch protocol. Enter Operative ID:\n(Available: ${agents.filter(a=>a.role==='AGENT').map(a => `${a.id}-${a.name}`).join(', ')})`);
-                          if(agentId) {
-                            try {
-                              await axios.post('http://localhost:8085/api/routes/assign-shift', { routeId: selectedRoute.id, agentId: parseInt(agentId) }, authH);
-                              alert("Operative officially dispatched!");
-                              await fetchAll();
-                            } catch(_e) { alert("Dispatch failed."); }
-                          }
-                        }}>
-                          Dispatch Operative
-                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                    <h3 style={{ fontSize:14, color:G.text, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Field Operatives</h3>
+                    {agents.filter(a => a.role === 'AGENT').length === 0 ? (
+                      <div style={{ padding:40, textAlign:'center', background:G.card, border:`1px dashed ${G.borderHi}`, borderRadius:G.rLg, color:G.muted, fontSize:13, fontStyle: 'italic' }}>
+                        No agents registered.
                       </div>
+                    ) : agents.filter(a => a.role === 'AGENT').map(a => {
+                      const agentCusts = customers.filter(c => c.assignedAgent?.id === a.id);
+                      const isSelected = selectedAgentForLogistics?.id === a.id;
+                      const activeRoute = routes.find(r => r.assignedAgent?.id === a.id);
 
-                      {leafletLoaded ? (
-                        <LogisticsMap selectedRoute={selectedRoute} customers={customers} authH={authH} onCoordinatesUpdate={handleCoordinatesUpdate} />
-                      ) : (
-                        <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', background: G.surface, borderRadius: 8, border: `1px solid ${G.border}`, marginBottom: 24, fontSize: 13, color: G.textSub }}>
-                          Loading Interactive Route Map...
+                      return (
+                        <div key={a.id} onClick={() => { setSelectedAgentForLogistics(a); setLocalSequenceOrder(null); }} style={{
+                          padding:'20px 24px', background:isSelected ? G.accentBg : G.surface,
+                          border:`1px solid ${isSelected ? G.accent : G.border}`,
+                          borderRadius:4, cursor:'pointer', transition:'all .2s',
+                          borderLeft: isSelected ? `4px solid ${G.accent}` : `1px solid ${G.border}`
+                        }}>
+                          <div style={{ fontWeight:700, color:isSelected ? G.accentDim : G.text, fontFamily:'var(--font-display)', fontSize:18 }}>
+                            {a.name}
+                          </div>
+                          <div style={{ fontSize:12, color:G.textSub, marginTop:4 }}>{a.email}</div>
+                          <div style={{ fontSize:12, color:G.textSub, marginTop:8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span>{agentCusts.length} clients linked</span>
+                            {activeRoute && (
+                              <span style={{ fontSize:10, color:G.info, background:G.surface, padding:'2px 6px', borderRadius:4, fontWeight:700 }}>
+                                📍 Route: {activeRoute.routeName || activeRoute.name}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                )}
 
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32 }}>
-                        <div>
-                          <h4 style={{ fontSize:12, color:G.text, fontWeight: 700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:16, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>Optimized Sequence</h4>
-                          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                            {customers.filter(c => c.route?.id === selectedRoute.id)
-                              .sort((a,b) => (a.routeSequence||0) - (b.routeSequence||0))
-                              .map(c => (
-                                <div key={c.id} style={{ padding:'12px 16px', background:G.surface, border:`1px solid ${G.border}`, borderRadius:4, display:'flex', alignItems:'center', gap:16 }}>
-                                  <div style={{ width:28, height:28, borderRadius:4, background:G.bg, border: `1px solid ${G.borderHi}`, color:G.text, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700 }}>
-                                    {c.routeSequence || 0}
-                                  </div>
-                                  <div style={{ flex:1 }}>
-                                    <div style={{ fontSize:13, fontWeight:600, color:G.text }}>{c.name}</div>
-                                    <div style={{ fontSize:11, color:G.textSub, fontFamily: 'monospace', marginTop: 2 }}>{c.accountNumber}</div>
-                                    <div style={{ fontSize:10, color:G.textSub, marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <span>{c.latitude ? `📍 ${c.latitude.toFixed(4)}, ${c.longitude.toFixed(4)}` : '📍 No GPS Coordinates'}</span>
-                                      <span style={{ color: G.accent, cursor: 'pointer', textDecoration: 'underline' }} onClick={async (e) => {
-                                        e.stopPropagation();
-                                        const coords = window.prompt(`Set coordinates for ${c.name} (format: lat,lng):`, c.latitude ? `${c.latitude},${c.longitude}` : '');
-                                        if (coords) {
-                                          const [lat, lng] = coords.split(',').map(Number);
-                                          if (!isNaN(lat) && !isNaN(lng)) {
-                                            handleCoordinatesUpdate(c.id, lat, lng);
-                                          } else {
-                                            alert("Invalid coordinates.");
+                {/* RIGHT COLUMN: DETAIL/MAP WORKSPACE */}
+                {logisticsView === 'routes' ? (
+                  <div style={{ background:G.card, border:`1px solid ${G.border}`, borderRadius:G.rLg, padding:32, display:'flex', flexDirection:'column', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                    {!selectedRoute ? (
+                      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:G.muted, fontSize:14, fontStyle: 'italic' }}>
+                        <div style={{ fontSize:40, marginBottom:16, opacity: 0.5 }}>🗺️</div>
+                        Select a geography from the index to configure logistics.
+                      </div>
+                    ) : (
+                      <div className="fade-up">
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:28, paddingBottom:24, borderBottom:`1px solid ${G.border}` }}>
+                          <div>
+                            <h2 style={{ fontFamily:'var(--font-display)', fontSize:24, fontWeight:700, color:G.text }}>{selectedRoute.routeName || selectedRoute.name}</h2>
+                            <div style={{ fontSize:13, color:G.textSub, marginTop:6, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>Configure sequence and assign operative.</span>
+                              {selectedRoute.assignedAgent && (
+                                <span style={{ fontSize:11, color:G.accentDim, background:G.accentBg, padding:'2px 8px', borderRadius:4, fontWeight:700 }}>
+                                  Dispatched Operative: {selectedRoute.assignedAgent.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button className="btn-primary" style={{ background: G.info, color: '#FFF' }} onClick={async () => {
+                            const agentId = window.prompt(`Dispatch protocol. Enter Operative ID:\n(Available: ${agents.filter(a=>a.role==='AGENT').map(a => `${a.id}-${a.name}`).join(', ')})`);
+                            if(agentId) {
+                              try {
+                                await axios.post('http://localhost:8085/api/routes/assign-shift', { routeId: selectedRoute.id, agentId: parseInt(agentId) }, authH);
+                                alert("Operative officially dispatched!");
+                                await fetchAll();
+                              } catch(_e) { alert("Dispatch failed."); }
+                            }
+                          }}>
+                            Dispatch Operative
+                          </button>
+                        </div>
+
+                        {leafletLoaded ? (
+                          <LogisticsMap selectedRoute={selectedRoute} customers={customers} authH={authH} onCoordinatesUpdate={handleCoordinatesUpdate} />
+                        ) : (
+                          <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', background: G.surface, borderRadius: 8, border: `1px solid ${G.border}`, marginBottom: 24, fontSize: 13, color: G.textSub }}>
+                            Loading Interactive Route Map...
+                          </div>
+                        )}
+
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32 }}>
+                          <div>
+                            <h4 style={{ fontSize:12, color:G.text, fontWeight: 700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:16, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>Optimized Sequence</h4>
+                            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                              {customers.filter(c => c.route?.id === selectedRoute.id)
+                                .sort((a,b) => (a.routeSequence||0) - (b.routeSequence||0))
+                                .map(c => (
+                                  <div key={c.id} style={{ padding:'12px 16px', background:G.surface, border:`1px solid ${G.border}`, borderRadius:4, display:'flex', alignItems:'center', gap:16 }}>
+                                    <div style={{ width:28, height:28, borderRadius:4, background:G.bg, border: `1px solid ${G.borderHi}`, color:G.text, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700 }}>
+                                      {c.routeSequence || 0}
+                                    </div>
+                                    <div style={{ flex:1 }}>
+                                      <div style={{ fontSize:13, fontWeight:600, color:G.text }}>{c.name}</div>
+                                      <div style={{ fontSize:11, color:G.textSub, fontFamily: 'monospace', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        <div>ACC: {c.accountNumber}</div>
+                                        <div>
+                                          {c.assignedAgent ? (
+                                            <span style={{ color: G.accent, fontWeight: 600 }}>👤 Agent: {c.assignedAgent.name}</span>
+                                          ) : (
+                                            <span style={{ color: G.warn, fontWeight: 600 }}>👤 Unassigned</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div style={{ fontSize:10, color:G.textSub, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span>{c.latitude ? `📍 ${c.latitude.toFixed(4)}, ${c.longitude.toFixed(4)}` : '📍 No GPS Coordinates'}</span>
+                                        <span style={{ color: G.accent, cursor: 'pointer', textDecoration: 'underline' }} onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const coords = window.prompt(`Set coordinates for ${c.name} (format: lat,lng):`, c.latitude ? `${c.latitude},${c.longitude}` : '');
+                                          if (coords) {
+                                            const [lat, lng] = coords.split(',').map(Number);
+                                            if (!isNaN(lat) && !isNaN(lng)) {
+                                              handleCoordinatesUpdate(c.id, lat, lng);
+                                            } else {
+                                              alert("Invalid coordinates.");
+                                            }
                                           }
-                                        }
-                                      }}>Edit</span>
+                                        }}>Edit</span>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                            ))}
-                            {customers.filter(c => c.route?.id === selectedRoute.id).length === 0 && (
-                              <div style={{ fontSize:13, color:G.muted, fontStyle:'italic', padding: 16, background: G.surface, borderRadius: 4 }}>No accounts routed yet.</div>
-                            )}
+                              ))}
+                              {customers.filter(c => c.route?.id === selectedRoute.id).length === 0 && (
+                                <div style={{ fontSize:13, color:G.muted, fontStyle:'italic', padding: 16, background: G.surface, borderRadius: 4 }}>No accounts routed yet.</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
 
-                        <div>
-                          <h4 style={{ fontSize:12, color:G.text, fontWeight: 700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:16, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>Unassigned Pool</h4>
-                          <div style={{ display:'flex', flexDirection:'column', gap:12, maxHeight:'500px', overflowY:'auto', paddingRight:8 }}>
-                            {customers.filter(c => !c.route).map(c => (
-                              <div key={c.id} style={{ padding:'12px 16px', background:G.surface, border:`1px dashed ${G.borderHi}`, borderRadius:4, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                <div>
-                                  <div style={{ fontSize:13, fontWeight:600, color:G.text }}>{c.name}</div>
-                                  <div style={{ fontSize:11, color:G.textSub, fontFamily: 'monospace', marginTop: 2 }}>{c.accountNumber}</div>
+                          <div>
+                            <h4 style={{ fontSize:12, color:G.text, fontWeight: 700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:16, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>Unassigned Pool</h4>
+                            <div style={{ display:'flex', flexDirection:'column', gap:12, maxHeight:'500px', overflowY:'auto', paddingRight:8 }}>
+                              {customers.filter(c => !c.route).map(c => (
+                                <div key={c.id} style={{ padding:'12px 16px', background:G.surface, border:`1px dashed ${G.borderHi}`, borderRadius:4, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                  <div>
+                                    <div style={{ fontSize:13, fontWeight:600, color:G.text }}>{c.name}</div>
+                                    <div style={{ fontSize:11, color:G.textSub, fontFamily: 'monospace', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                      <div>ACC: {c.accountNumber}</div>
+                                      <div>
+                                        {c.assignedAgent ? (
+                                          <span style={{ color: G.accent, fontWeight: 600 }}>👤 Agent: {c.assignedAgent.name}</span>
+                                        ) : (
+                                          <span style={{ color: G.warn, fontWeight: 600 }}>👤 Unassigned</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <button className="btn-ghost" style={{ padding:'6px 12px', fontSize:11, color:G.text, fontWeight: 600 }} onClick={async () => {
+                                    const seq = window.prompt(`Define sequence parameter for ${c.name}:`, "1");
+                                    if(seq) {
+                                      try {
+                                        await axios.post('http://localhost:8085/api/routes/assign-customer', {
+                                          customerId: c.id, routeId: selectedRoute.id, routeSequence: parseInt(seq)
+                                        }, authH);
+                                        fetchAll();
+                                      } catch(_e) { alert("Assignment rejected"); }
+                                    }
+                                  }}>Add</button>
                                 </div>
-                                <button className="btn-ghost" style={{ padding:'6px 12px', fontSize:11, color:G.text, fontWeight: 600 }} onClick={async () => {
-                                  const seq = window.prompt(`Define sequence parameter for ${c.name}:`, "1");
-                                  if(seq) {
-                                    try {
-                                      await axios.post('http://localhost:8085/api/routes/assign-customer', {
-                                        customerId: c.id, routeId: selectedRoute.id, routeSequence: parseInt(seq)
-                                      }, authH);
-                                      fetchAll();
-                                    } catch(_e) { alert("Assignment rejected"); }
-                                  }
-                                }}>Add</button>
-                              </div>
-                            ))}
-                            {customers.filter(c => !c.route).length === 0 && (
-                              <div style={{ fontSize:13, color:G.accentDim, fontStyle:'italic', fontWeight: 500 }}>All network accounts routed.</div>
-                            )}
+                              ))}
+                              {customers.filter(c => !c.route).length === 0 && (
+                                <div style={{ fontSize:13, color:G.accentDim, fontStyle:'italic', fontWeight: 500 }}>All network accounts routed.</div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ background:G.card, border:`1px solid ${G.border}`, borderRadius:G.rLg, padding:32, display:'flex', flexDirection:'column', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                    {!selectedAgentForLogistics ? (
+                      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:G.muted, fontSize:14, fontStyle: 'italic' }}>
+                        <div style={{ fontSize:40, marginBottom:16, opacity: 0.5 }}>🚶</div>
+                        Select a field operative from the index to view their assigned clients.
+                      </div>
+                    ) : (
+                      <div className="fade-up">
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:28, paddingBottom:24, borderBottom:`1px solid ${G.border}` }}>
+                          <div>
+                            <h2 style={{ fontFamily:'var(--font-display)', fontSize:24, fontWeight:700, color:G.text }}>{selectedAgentForLogistics.name}</h2>
+                            <div style={{ fontSize:13, color:G.textSub, marginTop:6, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>Assigned Agent Profile Dossier & Mapping.</span>
+                              {routes.find(r => r.assignedAgent?.id === selectedAgentForLogistics.id) && (
+                                <span style={{ fontSize:11, color:G.accentDim, background:G.accentBg, padding:'2px 8px', borderRadius:4, fontWeight:700 }}>
+                                  Dispatched: {routes.find(r => r.assignedAgent?.id === selectedAgentForLogistics.id).routeName || routes.find(r => r.assignedAgent?.id === selectedAgentForLogistics.id).name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: G.textSub }}>DISPATCH:</span>
+                            <select
+                              value={routes.find(r => r.assignedAgent?.id === selectedAgentForLogistics.id)?.id || ''}
+                              onChange={async (e) => {
+                                const rId = e.target.value;
+                                if (rId) {
+                                  try {
+                                    await axios.post('http://localhost:8085/api/routes/assign-shift', { routeId: parseInt(rId), agentId: selectedAgentForLogistics.id }, authH);
+                                    alert("Agent assigned and dispatched successfully!");
+                                    fetchAll();
+                                  } catch(_e) { alert("Dispatch failed."); }
+                                }
+                              }}
+                              style={{ padding: '8px 12px', background: G.surface, border: `1px solid ${G.border}`, color: G.text, borderRadius: 6, fontSize: 13, outline: 'none' }}
+                            >
+                              <option value="">— Select Route to Dispatch —</option>
+                              {routes.map(r => (
+                                <option key={r.id} value={r.id}>{r.routeName || r.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {leafletLoaded ? (
+                          <LogisticsMap selectedAgent={selectedAgentForLogistics} customers={customers} authH={authH} onCoordinatesUpdate={handleCoordinatesUpdate} />
+                        ) : (
+                          <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', background: G.surface, borderRadius: 8, border: `1px solid ${G.border}`, marginBottom: 24, fontSize: 13, color: G.textSub }}>
+                            Loading Interactive Route Map...
+                          </div>
+                        )}
+
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32 }}>
+                          {/* Column 1: Assigned Clients (Visit Sequence) */}
+                          <div>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>
+                              <h4 style={{ fontSize:12, color:G.text, fontWeight: 700, textTransform:'uppercase', letterSpacing:'1px' }}>Assigned Clients ({agentCustomers.length})</h4>
+                              {agentCustomers.length > 1 && (
+                                <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => {
+                                  try {
+                                    const orderedIds = agentCustomers.map(c => c.id);
+                                    await axios.put(`http://localhost:8085/api/customers/agent/${selectedAgentForLogistics.id}/sequence`, orderedIds, authH);
+                                    alert("Agent customer sequence saved successfully!");
+                                    setLocalSequenceOrder(null);
+                                    fetchAll();
+                                  } catch (_e) {
+                                    alert("Failed to save sequence.");
+                                  }
+                                }}>Save Sequence</button>
+                              )}
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                              {agentCustomers.length === 0 ? (
+                                <div style={{ fontSize:13, color:G.muted, fontStyle:'italic', padding: 16, background: G.surface, borderRadius: 4 }}>No clients assigned to this agent.</div>
+                              ) : (
+                                agentCustomers.map((c, i) => (
+                                  <div
+                                    key={c.id}
+                                    draggable
+                                    onDragStart={() => setDraggedAgentIdx(i)}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      const draggedItem = agentCustomers[draggedAgentIdx];
+                                      const remainingItems = agentCustomers.filter((_, idx) => idx !== draggedAgentIdx);
+                                      const newArr = [...remainingItems.slice(0, i), draggedItem, ...remainingItems.slice(i)];
+                                      setLocalSequenceOrder(newArr.map(item => item.id));
+                                      setDraggedAgentIdx(null);
+                                    }}
+                                    style={{
+                                      padding:'12px 16px', background:G.surface, border:`1px solid ${G.border}`, borderRadius:4,
+                                      display:'flex', alignItems:'center', gap:16, cursor:'grab', opacity: draggedAgentIdx === i ? 0.5 : 1
+                                    }}
+                                  >
+                                    <div style={{ fontSize:14, color:G.muted, cursor:'grab' }}>☰</div>
+                                    <div style={{ width:24, height:24, borderRadius:4, background:G.bg, border: `1px solid ${G.borderHi}`, color:G.text, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>
+                                      {i + 1}
+                                    </div>
+                                    <div style={{ flex:1 }}>
+                                      <div style={{ fontSize:13, fontWeight:600, color:G.text }}>{c.name}</div>
+                                      <div style={{ fontSize:11, color:G.textSub, fontFamily: 'monospace', marginTop: 2 }}>
+                                        ID: {c.accountNumber} &nbsp;·&nbsp; Route: <strong>{c.route?.name || 'None'}</strong>
+                                      </div>
+                                      <div style={{ fontSize:10, color:G.textSub, marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span>{c.latitude ? `📍 ${c.latitude.toFixed(4)}, ${c.longitude.toFixed(4)}` : '📍 No GPS Coordinates'}</span>
+                                        <span style={{ color: G.accent, cursor: 'pointer', textDecoration: 'underline' }} onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const coords = window.prompt(`Set coordinates for ${c.name} (format: lat,lng):`, c.latitude ? `${c.latitude},${c.longitude}` : '');
+                                          if (coords) {
+                                            const [lat, lng] = coords.split(',').map(Number);
+                                            if (!isNaN(lat) && !isNaN(lng)) {
+                                              handleCoordinatesUpdate(c.id, lat, lng);
+                                            } else {
+                                              alert("Invalid coordinates.");
+                                            }
+                                          }
+                                        }}>Edit GPS</span>
+                                        &nbsp;·&nbsp;
+                                        <span style={{ color: G.danger, cursor: 'pointer', textDecoration: 'underline' }} onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm(`Unassign ${c.name} from agent ${selectedAgentForLogistics.name}?`)) {
+                                            try {
+                                              await axios.put(`http://localhost:8085/api/customers/${c.id}/assign-agent/null`, {}, authH);
+                                              setLocalSequenceOrder(null);
+                                              fetchAll();
+                                            } catch(_e) { alert("Failed to unassign customer."); }
+                                          }
+                                        }}>Unassign</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Column 2: Unassigned Customers Pool */}
+                          <div>
+                            <h4 style={{ fontSize:12, color:G.text, fontWeight: 700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:16, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>Unassigned Customers Pool</h4>
+                            <div style={{ display:'flex', flexDirection:'column', gap:12, maxHeight:'500px', overflowY:'auto', paddingRight:8 }}>
+                              {customers.filter(c => !c.assignedAgent).map(c => (
+                                <div key={c.id} style={{ padding:'12px 16px', background:G.surface, border:`1px dashed ${G.borderHi}`, borderRadius:4, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                  <div>
+                                    <div style={{ fontSize:13, fontWeight:600, color:G.text }}>{c.name}</div>
+                                    <div style={{ fontSize:11, color:G.textSub, fontFamily: 'monospace', marginTop: 2 }}>
+                                      ID: {c.accountNumber}
+                                    </div>
+                                  </div>
+                                  <button className="btn-ghost" style={{ padding:'6px 12px', fontSize:11, color:G.text, fontWeight: 600 }} onClick={async () => {
+                                    try {
+                                      await axios.put(`http://localhost:8085/api/customers/${c.id}/assign-agent/${selectedAgentForLogistics.id}`, {}, authH);
+                                      setLocalSequenceOrder(null);
+                                      fetchAll();
+                                    } catch(_e) { alert("Failed to assign customer to agent."); }
+                                  }}>Assign to Agent</button>
+                                </div>
+                              ))}
+                              {customers.filter(c => !c.assignedAgent).length === 0 && (
+                                <div style={{ fontSize:13, color:G.accentDim, fontStyle:'italic', fontWeight: 500 }}>All clients in network are assigned to agents.</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2051,7 +2428,16 @@ export default function AdminDashboard({ user, handleLogout }) {
                                 </span>
                               )}
                             </div>
-                            <div style={{ fontSize:12, color:G.textSub, fontFamily: 'monospace', marginTop: 4 }}>ID: {c.accountNumber}</div>
+                            <div style={{ fontSize:12, color:G.textSub, fontFamily: 'monospace', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <div>ID: {c.accountNumber}</div>
+                              <div style={{ fontSize: 11, marginTop: 2 }}>
+                                {c.assignedAgent ? (
+                                  <span style={{ color: G.accent, fontWeight: 600 }}>👤 Agent: {c.assignedAgent.name}</span>
+                                ) : (
+                                  <span style={{ color: G.warn, fontWeight: 600 }}>👤 Unassigned</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                           <div style={{ fontSize:13, color:G.textSub, fontWeight: 500 }}>{c.phoneNumber || '—'}</div>
                           <div style={{ fontSize:14, color:G.text, fontWeight:700 }}>{fmtR(c.currentBalance)}</div>
@@ -2112,7 +2498,22 @@ export default function AdminDashboard({ user, handleLogout }) {
                              onMouseEnter={e => e.currentTarget.style.background = '#F8F9FA'}
                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <div style={{ width:40, height:40, borderRadius:4, background:`${colors[i%colors.length]}15`, color:colors[i%colors.length], display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, fontFamily: 'var(--font-display)' }}>{initials(a.name)}</div>
-                          <div><div style={{ fontSize:14, color:G.text, fontWeight: 600 }}>{a.name}</div><div style={{ fontSize:12, color:G.textSub, marginTop: 4 }}>{a.email}</div></div>
+                          <div>
+                            <div style={{ fontSize:14, color:G.text, fontWeight: 600 }}>{a.name}</div>
+                            <div style={{ fontSize:12, color:G.textSub, marginTop: 4 }}>{a.email}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                              {a.role === 'AGENT' && (
+                                <span style={{ fontSize:11, color: G.accent, fontWeight: 600 }}>
+                                  🔗 {customers.filter(c => c.assignedAgent?.id === a.id).length} Linked Clients
+                                </span>
+                              )}
+                              {a.role === 'AGENT' && (
+                                <span style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2, background: a.registeredDeviceId ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 71, 87, 0.1)', color: a.registeredDeviceId ? '#00e676' : '#ff4757', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                                  {a.registeredDeviceId ? '📱 BOUND' : '📱 UNBOUND'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                           <div style={{ fontSize:13, color:G.textSub, fontWeight: 500 }}>{a.phoneNumber || '—'}</div>
                           <div><span className={`tag ${roleTag[a.role] || 'tag-blue'}`}>{a.role}</span></div>
                           <div style={{ fontSize:13, color:G.text, fontWeight: 500 }}>{a.branch?.name || 'HQ'}</div>
@@ -2374,6 +2775,20 @@ export default function AdminDashboard({ user, handleLogout }) {
           <CustomerProfileModal customer={selectedCustomer} token={token} onSuccess={fetchAll} onClose={() => setSelectedCustomer(null)} />
         </Modal>
       )}
+      <LocalChatbot 
+        activeTab={tab}
+        setActiveTab={setTab}
+        users={agents}
+        customers={customers}
+        branches={branches}
+        stats={stats}
+        setEditAgent={setEditAgent}
+        setSelectedCustomer={setSelectedCustomer}
+        token={token}
+        fetchAll={fetchAll}
+        setSearch={setSearch}
+        setCustSearch={setCustSearch}
+      />
     </>
   );
 }

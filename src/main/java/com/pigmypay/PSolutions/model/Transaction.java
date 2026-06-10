@@ -64,4 +64,10 @@ public class Transaction {
     // Prevents double-charging if the mobile app syncs the same data twice.
     @Column(unique = true, length = 100)
     private String offlineAppTxId;
+
+    @Column(name = "rating")
+    private Integer rating;
+
+    @Column(name = "feedback", length = 500)
+    private String feedback;
 }

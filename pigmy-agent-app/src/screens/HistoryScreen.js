@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getDailyLog } from '../database';
-import api from '../../api'; // Make sure this path is correct for your api.js
+import api from '../../api';
+import { useTranslation } from '../localization';
 
 export default function HistoryScreen() {
+    const { t } = useTranslation();
     const [logs, setLogs] = useState([]);
     const [viewMode, setViewMode] = useState('LOCAL'); // 'LOCAL' or 'CLOUD'
     const [loading, setLoading] = useState(false);
+    
+    // Search & Filter States
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterMode, setFilterMode] = useState('ALL'); // 'ALL', 'CASH', 'UPI'
+
     const isFocused = useIsFocused();
 
     // Load Local Offline SQLite data
@@ -30,26 +37,36 @@ export default function HistoryScreen() {
         try {
             const response = await api.get('/api/transactions/my-history');
 
-            // We must normalize the Spring Boot JSON to match our mobile UI card format
+            // Normalize JSON to match mobile UI card format
             const normalizedCloudData = response.data.map(tx => ({
-                id: tx.id.toString(), // Cloud ID
-                timestamp: tx.transactionDate, // From Spring Boot
+                id: tx.id.toString(),
+                timestamp: tx.transactionDate,
                 customerName: tx.customer?.name || 'Unknown',
                 accountNumber: tx.customer?.accountNumber || 'N/A',
                 paymentMode: tx.paymentMode,
                 type: tx.transactionCategory,
-                status: 'CLOUD_VERIFIED', // 🚨 Special badge for server data
+                status: 'CLOUD_VERIFIED',
                 amount: tx.amount
             }));
 
             setLogs(normalizedCloudData);
-        } catch {
+        } catch (_err) {
             Alert.alert("Network Error", "Could not reach the server to fetch history.");
             loadLocalData(); // Fall back to offline mode
         } finally {
             setLoading(false);
         }
     };
+
+    const filteredLogs = logs.filter(log => {
+        const q = searchQuery.toLowerCase();
+        const name = log.customerName || `Customer #${log.customerId}`;
+        const matchesSearch = !searchQuery || name.toLowerCase().includes(q) || log.accountNumber?.includes(searchQuery);
+        
+        const matchesMode = filterMode === 'ALL' || log.paymentMode === filterMode;
+        
+        return matchesSearch && matchesMode;
+    });
 
     const renderLogItem = ({ item }) => {
         let statusColor = '#f59e0b'; // PENDING
@@ -65,7 +82,7 @@ export default function HistoryScreen() {
             iconName = 'close-circle-outline';
             statusText = 'SKIPPED / CLOSED';
         } else if (item.status === 'CLOUD_VERIFIED') {
-            statusColor = '#38bdf8'; // Blue for official server data
+            statusColor = '#38bdf8';
             iconName = 'server-outline';
             statusText = 'OFFICIAL RECORD';
         }
@@ -106,9 +123,9 @@ export default function HistoryScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.headerTitle}>Transaction History</Text>
+            <Text style={styles.headerTitle}>{t('transactionHistory')}</Text>
 
-            {/* 🚨 THE NEW SOURCE TOGGLE */}
+            {/* TOGGLE SOURCE */}
             <View style={styles.toggleContainer}>
                 <TouchableOpacity
                     style={[styles.toggleBtn, viewMode === 'LOCAL' && styles.toggleActive]}
@@ -127,19 +144,49 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* SEARCH AND FILTERS */}
+            <View style={styles.searchContainer}>
+                <Ionicons name="search" size={18} color="#718096" style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder={t('searchPlaceholder')}
+                    placeholderTextColor="#4a5568"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+            </View>
+
+            <View style={styles.filterChipContainer}>
+                {[
+                    { code: 'ALL', label: t('filterAll') },
+                    { code: 'CASH', label: t('filterCash') },
+                    { code: 'UPI', label: t('filterUpi') }
+                ].map(mode => (
+                    <TouchableOpacity
+                        key={mode.code}
+                        style={[styles.filterChip, filterMode === mode.code && styles.filterChipActive]}
+                        onPress={() => setFilterMode(mode.code)}
+                    >
+                        <Text style={[styles.filterChipText, filterMode === mode.code && styles.filterChipTextActive]}>
+                            {mode.label}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
             {loading ? (
                 <View style={styles.emptyState}>
                     <ActivityIndicator size="large" color="#38bdf8" />
                     <Text style={styles.emptyText}>Pulling records from server...</Text>
                 </View>
-            ) : logs.length === 0 ? (
+            ) : filteredLogs.length === 0 ? (
                 <View style={styles.emptyState}>
                     <Ionicons name="receipt-outline" size={48} color="#2d3748" />
-                    <Text style={styles.emptyText}>No transactions found.</Text>
+                    <Text style={styles.emptyText}>{t('noTransactions')}</Text>
                 </View>
             ) : (
                 <FlatList
-                    data={logs}
+                    data={filteredLogs}
                     keyExtractor={(item, index) => item.id + '-' + index}
                     renderItem={renderLogItem}
                     contentContainerStyle={{ paddingBottom: 100 }}
@@ -154,11 +201,21 @@ const styles = StyleSheet.create({
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#e2e8f0', marginBottom: 20 },
 
     // Toggle Styles
-    toggleContainer: { flexDirection: 'row', backgroundColor: '#111C3D', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#1F326D' },
+    toggleContainer: { flexDirection: 'row', backgroundColor: '#111C3D', borderRadius: 12, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: '#1F326D' },
     toggleBtn: { flex: 1, flexDirection: 'row', paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 8, gap: 8 },
     toggleActive: { backgroundColor: '#15224F', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' },
     toggleActiveCloud: { backgroundColor: '#15224F', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)' },
     toggleText: { color: '#718096', fontSize: 12, fontWeight: 'bold' },
+
+    // Search & Filter Styles
+    searchContainer: { flexDirection: 'row', backgroundColor: '#111C3D', borderWidth: 1, borderColor: '#1F326D', borderRadius: 12, alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
+    searchIcon: { marginRight: 10 },
+    searchInput: { flex: 1, color: '#e2e8f0', paddingVertical: 12, fontSize: 14 },
+    filterChipContainer: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+    filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#111C3D', borderWidth: 1, borderColor: '#1F326D' },
+    filterChipActive: { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
+    filterChipText: { color: '#718096', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
+    filterChipTextActive: { color: '#0A1128' },
 
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: '#718096', marginTop: 12, fontSize: 14 },

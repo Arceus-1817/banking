@@ -116,6 +116,8 @@ public class CustomerController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied.");
             }
 
+            if (payload.containsKey("name")) customer.setName(payload.get("name"));
+            if (payload.containsKey("phoneNumber")) customer.setPhoneNumber(payload.get("phoneNumber"));
             if (payload.containsKey("aadharNumber")) customer.setAadharNumber(payload.get("aadharNumber"));
             if (payload.containsKey("panNumber")) customer.setPanNumber(payload.get("panNumber"));
             if (payload.containsKey("residentialAddress")) customer.setResidentialAddress(payload.get("residentialAddress"));
@@ -209,11 +211,81 @@ public class CustomerController {
             }
             customer.setRoute(null);
             customer.setRouteSequence(0);
-            customer.setAssignedAgent(null); // Clear agent as well
+            // Preserving customer.assignedAgent for direct assignment continuity
             customerRepository.save(customer);
             return ResponseEntity.ok(Map.of("message", "Customer removed from route."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Route removal failed: " + e.getMessage());
+        }
+    }
+
+    // ── 9.1 DIRECT AGENT ASSIGNMENT ──
+    @PutMapping("/{customerId}/assign-agent/{agentId}")
+    @Transactional
+    public ResponseEntity<?> assignCustomerToAgent(@PathVariable Long customerId, @PathVariable Long agentId,
+                                                   @RequestHeader("Authorization") String authHeader) {
+        try {
+            Long tokenTenantId = jwtService.extractTenantId(extractToken(authHeader));
+            Customer customer = customerRepository.findById(customerId).orElseThrow();
+            if (!customer.getTenant().getId().equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied.");
+            }
+            User agent = userRepository.findById(agentId).orElseThrow();
+            if (!agent.getTenant().getId().equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied.");
+            }
+            customer.setAssignedAgent(agent);
+            
+            // Set routeSequence to next index in the agent's assigned customer list
+            List<Customer> currentCustomers = customerRepository.findByAssignedAgentIdAndTenantId(agentId, tokenTenantId);
+            customer.setRouteSequence(currentCustomers.size() + 1);
+            
+            customerRepository.save(customer);
+            return ResponseEntity.ok(Map.of("message", "Customer successfully assigned to agent: " + agent.getName()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Assignment failed: " + e.getMessage());
+        }
+    }
+
+    // ── 9.2 DIRECT AGENT UNASSIGNMENT ──
+    @PutMapping("/{customerId}/assign-agent/null")
+    @Transactional
+    public ResponseEntity<?> unassignCustomerFromAgent(@PathVariable Long customerId,
+                                                       @RequestHeader("Authorization") String authHeader) {
+        try {
+            Long tokenTenantId = jwtService.extractTenantId(extractToken(authHeader));
+            Customer customer = customerRepository.findById(customerId).orElseThrow();
+            if (!customer.getTenant().getId().equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied.");
+            }
+            customer.setAssignedAgent(null);
+            customer.setRouteSequence(0);
+            customer.setRoute(null); // Clear route assignment as well when agent is unassigned
+            customerRepository.save(customer);
+            return ResponseEntity.ok(Map.of("message", "Customer successfully unassigned from agent."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Unassignment failed: " + e.getMessage());
+        }
+    }
+
+    // ── 9.3 AGENT CUSTOMER SEQUENCE BULK UPDATE ──
+    @PutMapping("/agent/{agentId}/sequence")
+    @Transactional
+    public ResponseEntity<?> updateAgentCustomerSequence(@PathVariable Long agentId, @RequestBody List<Long> orderedCustomerIds,
+                                                         @RequestHeader("Authorization") String authHeader) {
+        try {
+            Long tokenTenantId = jwtService.extractTenantId(extractToken(authHeader));
+            for (int i = 0; i < orderedCustomerIds.size(); i++) {
+                Customer c = customerRepository.findById(orderedCustomerIds.get(i)).orElseThrow();
+                if (!c.getTenant().getId().equals(tokenTenantId)) continue;
+                if (c.getAssignedAgent() != null && c.getAssignedAgent().getId().equals(agentId)) {
+                    c.setRouteSequence(i + 1);
+                    customerRepository.save(c);
+                }
+            }
+            return ResponseEntity.ok(Map.of("message", "Agent customer sequence saved successfully."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Sequence update failed: " + e.getMessage());
         }
     }
 

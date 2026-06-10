@@ -98,6 +98,7 @@ public class TransactionController {
 
             if (!isSkip) {
                 validateAgentCashLimit(agent, request.getAmount());
+                validateAgentDailyCollectionLimit(agent, request.getAmount());
                 customer.setCurrentBalance(customer.getCurrentBalance().add(request.getAmount()));
                 customerRepository.save(customer);
             }
@@ -155,6 +156,7 @@ public class TransactionController {
             }
 
             validateAgentCashLimit(agent, request.getAmount());
+            validateAgentDailyCollectionLimit(agent, request.getAmount());
 
             List<Loan> activeLoans = loanRepository.findByCustomerIdAndStatus(customer.getId(), "ACTIVE");
             if (activeLoans.isEmpty()) {
@@ -473,6 +475,17 @@ public class TransactionController {
             throw new RuntimeException("CASH LIMIT EXCEEDED: You are holding ₹" + currentHolding +
                     ". Collecting this ₹" + incomingAmount + " exceeds your limit of ₹" +
                     agent.getMaxCashHoldingLimit() + ". Please return to the branch and settle cash immediately.");
+        }
+    }
+
+    private void validateAgentDailyCollectionLimit(User agent, BigDecimal incomingAmount) {
+        BigDecimal todayTotal = transactionRepository.calculateTodayTotalAmount(agent.getId());
+        BigDecimal projectedTotal = todayTotal.add(incomingAmount);
+
+        if (projectedTotal.compareTo(agent.getDailyCollectionLimit()) > 0) {
+            throw new RuntimeException("DAILY COLLECTION LIMIT EXCEEDED: You have already collected ₹" + todayTotal +
+                    " today. Collecting this ₹" + incomingAmount + " exceeds your daily collection limit of ₹" +
+                    agent.getDailyCollectionLimit() + ".");
         }
     }
 }

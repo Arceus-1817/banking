@@ -114,6 +114,7 @@ public class UserController {
             // PAYROLL & COMPLIANCE
             user.setCommissionRate(request.getCommissionRate() != null ? request.getCommissionRate() : BigDecimal.ZERO);
             user.setBaseSalary(request.getBaseSalary() != null ? request.getBaseSalary() : BigDecimal.ZERO);
+            user.setDailyCollectionLimit(request.getDailyCollectionLimit() != null ? request.getDailyCollectionLimit() : new BigDecimal("40000.00"));
             user.setPanNumber(request.getPanNumber());
             user.setAadhaarNumber(request.getAadhaarNumber());
             user.setBankName(request.getBankName());
@@ -148,6 +149,24 @@ public class UserController {
         }
     }
 
+    private String cleanString(Object val) {
+        if (val == null) return null;
+        String s = val.toString().trim();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) return null;
+        return s;
+    }
+
+    private BigDecimal cleanBigDecimal(Object val) {
+        if (val == null) return BigDecimal.ZERO;
+        String s = val.toString().trim();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) return BigDecimal.ZERO;
+        try {
+            return new BigDecimal(s);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
     // ════════════════════════════════════════════════════════════
     // 3. UPDATE USER
     // ════════════════════════════════════════════════════════════
@@ -155,6 +174,7 @@ public class UserController {
     @Transactional
     public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> updates, @RequestHeader("Authorization") String authHeader) {
         try {
+            System.out.println(">>> UPDATE USER REQUEST FOR ID " + id + " | PAYLOAD: " + updates);
             Long tokenTenantId = jwtService.extractTenantId(extractToken(authHeader));
             User user = userRepository.findById(id).orElseThrow();
 
@@ -162,31 +182,41 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied: Cross-tenant breach blocked.");
             }
 
-            if (updates.containsKey("role")) user.setRole(Role.valueOf((String) updates.get("role")));
-            if (updates.containsKey("name")) user.setName((String) updates.get("name"));
-            if (updates.containsKey("phoneNumber")) user.setPhoneNumber((String) updates.get("phoneNumber"));
-            if (updates.containsKey("commissionRate")) user.setCommissionRate(new BigDecimal(updates.get("commissionRate").toString()));
-            if (updates.containsKey("baseSalary")) user.setBaseSalary(new BigDecimal(updates.get("baseSalary").toString()));
-            if (updates.containsKey("panNumber")) user.setPanNumber((String) updates.get("panNumber"));
-            if (updates.containsKey("aadhaarNumber")) user.setAadhaarNumber((String) updates.get("aadhaarNumber"));
-            if (updates.containsKey("bankName")) user.setBankName((String) updates.get("bankName"));
-            if (updates.containsKey("bankAccountNumber")) user.setBankAccountNumber((String) updates.get("bankAccountNumber"));
-            if (updates.containsKey("bankIfscCode")) user.setBankIfscCode((String) updates.get("bankIfscCode"));
+            if (updates.containsKey("role")) {
+                String roleStr = cleanString(updates.get("role"));
+                if (roleStr != null) user.setRole(Role.valueOf(roleStr));
+            }
+            if (updates.containsKey("name")) {
+                String nameStr = cleanString(updates.get("name"));
+                if (nameStr != null) user.setName(nameStr);
+            }
+            if (updates.containsKey("phoneNumber")) {
+                String phoneStr = cleanString(updates.get("phoneNumber"));
+                if (phoneStr != null) user.setPhoneNumber(phoneStr);
+            }
+            if (updates.containsKey("commissionRate")) user.setCommissionRate(cleanBigDecimal(updates.get("commissionRate")));
+            if (updates.containsKey("baseSalary")) user.setBaseSalary(cleanBigDecimal(updates.get("baseSalary")));
+            if (updates.containsKey("dailyCollectionLimit")) user.setDailyCollectionLimit(cleanBigDecimal(updates.get("dailyCollectionLimit")));
+            if (updates.containsKey("panNumber")) user.setPanNumber(cleanString(updates.get("panNumber")));
+            if (updates.containsKey("aadhaarNumber")) user.setAadhaarNumber(cleanString(updates.get("aadhaarNumber")));
+            if (updates.containsKey("bankName")) user.setBankName(cleanString(updates.get("bankName")));
+            if (updates.containsKey("bankAccountNumber")) user.setBankAccountNumber(cleanString(updates.get("bankAccountNumber")));
+            if (updates.containsKey("bankIfscCode")) user.setBankIfscCode(cleanString(updates.get("bankIfscCode")));
             if (updates.containsKey("dateOfBirth")) {
-                Object dobRaw = updates.get("dateOfBirth");
-                user.setDateOfBirth(dobRaw != null ? java.time.LocalDate.parse(dobRaw.toString()) : null);
+                String dobRaw = cleanString(updates.get("dateOfBirth"));
+                user.setDateOfBirth(dobRaw != null ? java.time.LocalDate.parse(dobRaw) : null);
             }
             if (updates.containsKey("dateOfJoining")) {
-                Object dojRaw = updates.get("dateOfJoining");
-                user.setDateOfJoining(dojRaw != null ? java.time.LocalDate.parse(dojRaw.toString()) : null);
+                String dojRaw = cleanString(updates.get("dateOfJoining"));
+                user.setDateOfJoining(dojRaw != null ? java.time.LocalDate.parse(dojRaw) : null);
             }
 
             if (updates.containsKey("branchId")) {
-                Object branchIdRaw = updates.get("branchId");
+                String branchIdRaw = cleanString(updates.get("branchId"));
                 if (branchIdRaw == null) {
                     user.setBranch(null);
                 } else {
-                    Branch branch = branchRepository.findById(Long.valueOf(branchIdRaw.toString())).orElseThrow();
+                    Branch branch = branchRepository.findById(Long.valueOf(branchIdRaw)).orElseThrow();
                     user.setBranch(branch);
                 }
             }
@@ -194,6 +224,7 @@ public class UserController {
             User saved = userRepository.save(user);
             return ResponseEntity.ok(mapUserForFrontend(saved));
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
@@ -301,11 +332,69 @@ public class UserController {
                     "phoneNumber", user.getPhoneNumber(),
                     "role", user.getRole().name(),
                     "maxCashHoldingLimit", user.getMaxCashHoldingLimit(),
+                    "dailyCollectionLimit", user.getDailyCollectionLimit(),
                     "tenantName", user.getTenant() != null ? user.getTenant().getCompanyName() : "HQ",
                     "branchName", user.getBranch() != null ? user.getBranch().getName() : "Unassigned"
             ));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Session invalid");
+        }
+    }
+
+    @PostMapping("/{id}/approve-device")
+    @Transactional
+    public ResponseEntity<?> approveDevice(@PathVariable Long id, @RequestHeader("Authorization") String authHeader) {
+        try {
+            Long tokenTenantId = jwtService.extractTenantId(extractToken(authHeader));
+            User targetUser = userRepository.findById(id).orElseThrow();
+
+            if (!targetUser.getTenant().getId().equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied");
+            }
+
+            if (targetUser.getPendingDeviceId() == null || targetUser.getPendingDeviceId().isEmpty()) {
+                return ResponseEntity.badRequest().body("No pending device binding request found for this user.");
+            }
+
+            targetUser.setRegisteredDeviceId(targetUser.getPendingDeviceId());
+            targetUser.setPendingDeviceId(null);
+            targetUser.setMobileVerificationOtp(null);
+            targetUser.setMobileVerificationOtpExpiresAt(null);
+            targetUser.setFailedLoginAttempts(0);
+            targetUser.setAccountLockedUntil(null);
+            
+            userRepository.save(targetUser);
+            return ResponseEntity.ok(Map.of("message", "Device binding approved successfully. User can now login."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}/manual-device-id")
+    @Transactional
+    public ResponseEntity<?> manualDeviceBinding(@PathVariable Long id, @RequestBody Map<String, String> payload, @RequestHeader("Authorization") String authHeader) {
+        try {
+            Long tokenTenantId = jwtService.extractTenantId(extractToken(authHeader));
+            User targetUser = userRepository.findById(id).orElseThrow();
+
+            if (!targetUser.getTenant().getId().equals(tokenTenantId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied");
+            }
+
+            String deviceId = payload.get("deviceId");
+            if (deviceId == null || deviceId.trim().isEmpty()) {
+                targetUser.setRegisteredDeviceId(null);
+            } else {
+                targetUser.setRegisteredDeviceId(deviceId.trim());
+            }
+            targetUser.setPendingDeviceId(null);
+            targetUser.setMobileVerificationOtp(null);
+            targetUser.setMobileVerificationOtpExpiresAt(null);
+            
+            userRepository.save(targetUser);
+            return ResponseEntity.ok(Map.of("message", "Device ID configured manually."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
@@ -317,7 +406,12 @@ public class UserController {
         m.put("phoneNumber", u.getPhoneNumber() != null ? u.getPhoneNumber() : "");
         m.put("role", u.getRole().name());
         m.put("isActive", u.isEnabled());
+        m.put("registeredDeviceId", u.getRegisteredDeviceId());
+        m.put("pendingDeviceId", u.getPendingDeviceId());
+        m.put("mobileVerificationOtp", u.getMobileVerificationOtp());
+        m.put("mobileVerificationOtpExpiresAt", u.getMobileVerificationOtpExpiresAt() != null ? u.getMobileVerificationOtpExpiresAt().toString() : null);
         m.put("maxCashHoldingLimit", u.getMaxCashHoldingLimit());
+        m.put("dailyCollectionLimit", u.getDailyCollectionLimit());
         m.put("commissionRate", u.getCommissionRate());
         m.put("baseSalary", u.getBaseSalary());
         m.put("panNumber", u.getPanNumber() != null ? u.getPanNumber() : "");

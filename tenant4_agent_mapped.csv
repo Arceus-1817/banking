@@ -1,0 +1,4 @@
+hq_customer_id,account_number,name,hq_loan_id,expected_daily_emi,principal_amount,total_amount_due,interest_rate,agent
+CUST-T4-4001,ACC-T4-4001,Vikram Kadam,LOAN-T4-4001,150.00,15000.00,18000.00,12.00,sp@gmail.com
+CUST-T4-4002,ACC-T4-4002,Swati Patil,LOAN-T4-4002,200.00,20000.00,24000.00,12.00,sp@gmail.com
+CUST-T4-4003,ACC-T4-4003,Rohan Rane,LOAN-T4-4003,250.00,25000.00,30000.00,12.00,sp@gmail.com

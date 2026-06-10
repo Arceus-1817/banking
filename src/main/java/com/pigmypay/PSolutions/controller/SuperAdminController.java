@@ -106,6 +106,39 @@ public class SuperAdminController {
         }
     }
 
+    // ── 3. UPDATE EXISTING CLIENT ──
+    @PutMapping("/clients/{tenantId}")
+    @Transactional
+    public ResponseEntity<?> updateClient(@PathVariable Long tenantId, @RequestBody Map<String, Object> payload, @RequestHeader("Authorization") String authHeader) {
+        try {
+            verifySystemAdmin(extractToken(authHeader));
+            Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
+
+            if (payload.containsKey("companyName")) tenant.setCompanyName((String) payload.get("companyName"));
+            if (payload.containsKey("plan")) tenant.setPlan((String) payload.get("plan"));
+            if (payload.containsKey("status")) tenant.setStatus((String) payload.get("status"));
+            if (payload.containsKey("upiId")) tenant.setUpiId((String) payload.get("upiId"));
+            if (payload.containsKey("upiMerchantName")) tenant.setUpiMerchantName((String) payload.get("upiMerchantName"));
+            if (payload.containsKey("companyAddress")) tenant.setCompanyAddress((String) payload.get("companyAddress"));
+            if (payload.containsKey("gstNumber")) tenant.setGstNumber((String) payload.get("gstNumber"));
+            if (payload.containsKey("companyEmail")) tenant.setCompanyEmail((String) payload.get("companyEmail"));
+            if (payload.containsKey("companyPhone")) tenant.setCompanyPhone((String) payload.get("companyPhone"));
+            
+            if (payload.containsKey("subscriptionExpiresAt")) {
+                String val = (String) payload.get("subscriptionExpiresAt");
+                if (val == null || val.trim().isEmpty()) {
+                    tenant.setSubscriptionExpiresAt(null);
+                } else {
+                    tenant.setSubscriptionExpiresAt(LocalDateTime.parse(val));
+                }
+            }
+
+            return ResponseEntity.ok(tenantRepository.save(tenant));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Update failed: " + e.getMessage());
+        }
+    }
+
     // DTO
     public static class OnboardRequest {
         private String companyName;

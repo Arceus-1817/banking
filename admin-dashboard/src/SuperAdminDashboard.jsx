@@ -22,6 +22,19 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
   const [companyEmail, setCompanyEmail] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
 
+  // Editing Client Form State
+  const [editingClient, setEditingClient] = useState(null);
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editPlan, setEditPlan] = useState('STARTER');
+  const [editStatus, setEditStatus] = useState('ACTIVE');
+  const [editUpiId, setEditUpiId] = useState('');
+  const [editUpiMerchantName, setEditUpiMerchantName] = useState('');
+  const [editCompanyAddress, setEditCompanyAddress] = useState('');
+  const [editGstNumber, setEditGstNumber] = useState('');
+  const [editCompanyEmail, setEditCompanyEmail] = useState('');
+  const [editCompanyPhone, setEditCompanyPhone] = useState('');
+  const [editSubscriptionExpiresAt, setEditSubscriptionExpiresAt] = useState('');
+
   const validToken = user.token || user.jwt || user.accessToken;
   const authH = { headers: { Authorization: "Bearer " + validToken } };
 
@@ -52,6 +65,51 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
       fetchClients();
     } catch (e) {
       alert(e.response?.data || "Failed to onboard client.");
+    }
+    setLoading(false);
+  };
+
+  const startEdit = (c) => {
+    setEditingClient(c);
+    setEditCompanyName(c.companyName || '');
+    setEditPlan(c.plan || 'STARTER');
+    setEditStatus(c.status || 'ACTIVE');
+    setEditUpiId(c.upiId || '');
+    setEditUpiMerchantName(c.upiMerchantName || '');
+    setEditCompanyAddress(c.companyAddress || '');
+    setEditGstNumber(c.gstNumber || '');
+    setEditCompanyEmail(c.companyEmail || '');
+    setEditCompanyPhone(c.companyPhone || '');
+    
+    if (c.subscriptionExpiresAt) {
+      setEditSubscriptionExpiresAt(c.subscriptionExpiresAt.substring(0, 16));
+    } else {
+      setEditSubscriptionExpiresAt('');
+    }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await axios.put(`http://localhost:8085/api/superadmin/clients/${editingClient.id}`, {
+        companyName: editCompanyName,
+        plan: editPlan,
+        status: editStatus,
+        upiId: editUpiId,
+        upiMerchantName: editUpiMerchantName,
+        companyAddress: editCompanyAddress,
+        gstNumber: editGstNumber,
+        companyEmail: editCompanyEmail,
+        companyPhone: editCompanyPhone,
+        subscriptionExpiresAt: editSubscriptionExpiresAt || null
+      }, authH);
+
+      alert("Institutional Workspace configuration updated successfully.");
+      setEditingClient(null);
+      fetchClients();
+    } catch (e) {
+      alert(e.response?.data || "Failed to update client.");
     }
     setLoading(false);
   };
@@ -195,11 +253,13 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
           {/* CLIENT LIST */}
           <div className="sa-table-container fade-up-2">
             <div className="sa-table-header">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr 1fr', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 2fr 1fr 1fr 1.5fr 1fr', gap: 16 }}>
                 <div>Tenant Code</div>
                 <div>Institution Name</div>
                 <div>Service Tier</div>
-                <div>Network Status</div>
+                <div>Status</div>
+                <div>Subscription Expiry</div>
+                <div>Actions</div>
               </div>
             </div>
 
@@ -207,17 +267,38 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
               {activeClients.length === 0 ? (
                  <div style={{ padding: 60, textAlign: 'center', color: '#A0ABC0', fontSize: 14, fontStyle: 'italic' }}>No institutional clients provisioned on the network.</div>
               ) : (
-                activeClients.map((c) => (
-                  <div key={c.id} className="sa-table-row">
-                    <div className="sa-cell-id">#{String(c.id).padStart(4, '0')}</div>
-                    <div>
-                      <div className="sa-cell-name">{c.companyName}</div>
-                      <div className="sa-cell-date">Provisioned: {new Date(c.createdAt || '2026-01-01').toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                activeClients.map((c) => {
+                  const isExpired = c.subscriptionExpiresAt && new Date(c.subscriptionExpiresAt) < new Date();
+                  return (
+                    <div key={c.id} className="sa-table-row" style={{ display: 'grid', gridTemplateColumns: '0.8fr 2fr 1fr 1fr 1.5fr 1fr', gap: 16, alignItems: 'center' }}>
+                      <div className="sa-cell-id">#{String(c.id).padStart(4, '0')}</div>
+                      <div>
+                        <div className="sa-cell-name">{c.companyName}</div>
+                        <div className="sa-cell-date">Provisioned: {new Date(c.createdAt || '2026-01-01').toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                      </div>
+                      <div><span className="sa-badge-plan">{c.plan || 'STARTER'}</span></div>
+                      <div>
+                        {c.status === 'SUSPENDED' ? (
+                          <span className="sa-badge-status" style={{ color: '#C53030' }}><div className="sa-dot" style={{ background: '#C53030' }}/> SUSPENDED</span>
+                        ) : isExpired ? (
+                          <span className="sa-badge-status" style={{ color: '#D69E2E' }}><div className="sa-dot" style={{ background: '#D69E2E' }}/> EXPIRED</span>
+                        ) : (
+                          <span className="sa-badge-status" style={{ color: '#2F855A' }}><div className="sa-dot" style={{ background: '#38A169' }}/> ACTIVE</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: isExpired ? '#C53030' : '#4A5568' }}>
+                        {c.subscriptionExpiresAt ? (
+                          new Date(c.subscriptionExpiresAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+                        ) : (
+                          'Never Expires'
+                        )}
+                      </div>
+                      <div>
+                        <button className="sa-logout" style={{ borderColor: '#D4AF37', color: '#D4AF37', padding: '6px 12px', fontSize: 11 }} onClick={() => startEdit(c)}>Configure</button>
+                      </div>
                     </div>
-                    <div><span className="sa-badge-plan">{c.plan || 'STARTER'}</span></div>
-                    <div><span className="sa-badge-status"><div className="sa-dot"/> SECURE & ACTIVE</span></div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -272,6 +353,74 @@ export default function SuperAdminDashboard({ user, handleLogout }) {
                     <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>Cancel Protocol</button>
                     <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
                       {loading ? 'Provisioning...' : 'Authorize & Provision'}
+                    </button>
+                  </div>
+
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── WORKSPACE CONFIGURATION MODAL ── */}
+        {editingClient && (
+          <div className="sa-modal-overlay">
+            <div className="sa-modal-card">
+              <div className="sa-modal-header">
+                <h3 className="sa-modal-title">Configure Client Workspace</h3>
+                <p className="sa-modal-desc">Modify institutional settings, subscription parameters, and status controls.</p>
+              </div>
+
+              <div className="sa-modal-body">
+                <form onSubmit={handleUpdate}>
+
+                  <div className="sa-form-group">
+                    <label className="sa-form-label">Institution Details</label>
+                    <input className="sa-input" required placeholder="Registered Corporate Entity Name" value={editCompanyName} onChange={e => setEditCompanyName(e.target.value)} />
+                    
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: '#4A5568', fontWeight: 700, marginBottom: 4 }}>SERVICE TIER</div>
+                        <select className="sa-select" value={editPlan} onChange={e => setEditPlan(e.target.value)}>
+                          <option value="STARTER">Starter Tier (₹999/mo)</option>
+                          <option value="GROWTH">Growth Tier (₹2,499/mo)</option>
+                          <option value="ENTERPRISE">Enterprise Tier (Custom Protocol)</option>
+                        </select>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: '#4A5568', fontWeight: 700, marginBottom: 4 }}>WORKSPACE STATUS</div>
+                        <select className="sa-select" value={editStatus} onChange={e => setEditStatus(e.target.value)}>
+                          <option value="ACTIVE">ACTIVE</option>
+                          <option value="SUSPENDED">SUSPENDED</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 10, color: '#4A5568', fontWeight: 700, marginBottom: 4 }}>SUBSCRIPTION EXPRIATION (UTC/LOCAL)</div>
+                      <input className="sa-input" type="datetime-local" value={editSubscriptionExpiresAt} onChange={e => setEditSubscriptionExpiresAt(e.target.value)} />
+                      <div style={{ fontSize: 11, color: '#718096', marginTop: -8, marginBottom: 12 }}>Leave blank for a perpetual / non-expiring subscription.</div>
+                    </div>
+                  </div>
+
+                  <div className="sa-form-group">
+                    <label className="sa-form-label">UPI Settings</label>
+                    <input className="sa-input" placeholder="UPI ID / VPA (e.g., companyname@icici)" value={editUpiId} onChange={e => setEditUpiId(e.target.value)} />
+                    <input className="sa-input" placeholder="UPI Merchant Name" value={editUpiMerchantName} onChange={e => setEditUpiMerchantName(e.target.value)} />
+                    <input className="sa-input" placeholder="GST Number" value={editGstNumber} onChange={e => setEditGstNumber(e.target.value)} />
+                  </div>
+
+                  <div className="sa-form-group">
+                    <label className="sa-form-label">Support & Invoicing Address</label>
+                    <input className="sa-input" placeholder="Corporate Contact Email" type="email" value={editCompanyEmail} onChange={e => setEditCompanyEmail(e.target.value)} />
+                    <input className="sa-input" placeholder="Corporate Contact Phone" type="tel" value={editCompanyPhone} onChange={e => setEditCompanyPhone(e.target.value)} />
+                    <input className="sa-input" placeholder="Registered Company Address" value={editCompanyAddress} onChange={e => setEditCompanyAddress(e.target.value)} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 16, marginTop: 32 }}>
+                    <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setEditingClient(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
+                      {loading ? 'Updating...' : 'Commit Configuration'}
                     </button>
                   </div>
 

@@ -65,6 +65,9 @@ public class User implements UserDetails {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal maxCashHoldingLimit = new BigDecimal("50000.00");
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal dailyCollectionLimit = new BigDecimal("40000.00");
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -101,12 +104,21 @@ public class User implements UserDetails {
     public boolean isCredentialsNonExpired() { return true; }
 
     /**
-     * FIXED: Was hardcoded `return true`. Now checks isActive flag.
-     * This makes the employee termination kill-switch actually work.
+     * FIXED: Was hardcoded `return true`. Now checks isActive flag and tenant subscription status.
+     * This makes the employee termination and company subscription kill-switches actually work.
      */
     @Override
     public boolean isEnabled() {
-        return isActive != null && isActive;
+        boolean active = isActive != null && isActive;
+        if (tenant != null) {
+            if (!"ACTIVE".equalsIgnoreCase(tenant.getStatus())) {
+                return false;
+            }
+            if (tenant.getSubscriptionExpiresAt() != null && LocalDateTime.now().isAfter(tenant.getSubscriptionExpiresAt())) {
+                return false;
+            }
+        }
+        return active;
     }
 
     // SECURITY: Instantly kills JWT token and app access if set to false
@@ -119,6 +131,9 @@ public class User implements UserDetails {
     // ENTERPRISE SECURITY & DEVICE BINDING
     @Column(length = 255)
     private String registeredDeviceId;
+
+    @Column(length = 255, name = "pending_device_id")
+    private String pendingDeviceId;
 
     // Brute-force protection counter
     @Column(nullable = false)
@@ -157,4 +172,16 @@ public class User implements UserDetails {
 
     @Column(name = "date_of_joining")
     private java.time.LocalDate dateOfJoining;
+
+    @Column(length = 6, name = "mobile_verification_otp")
+    private String mobileVerificationOtp;
+
+    @Column(name = "mobile_verification_otp_expires_at")
+    private LocalDateTime mobileVerificationOtpExpiresAt;
+
+    @Column(length = 6, name = "password_reset_otp")
+    private String passwordResetOtp;
+
+    @Column(name = "password_reset_otp_expires_at")
+    private LocalDateTime passwordResetOtpExpiresAt;
 }

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,15 +169,31 @@ public class RouteController {
         try {
             User agent = userRepository.findByEmail(jwtService.extractUsername(extractToken(authHeader))).orElseThrow();
 
-            // Find ALL active shifts, ignoring date for debugging purposes
+            // 1. Get customers for the agent's active routes
             List<AgentShift> activeShifts = agentShiftRepository.findByAgentIdAndStatus(agent.getId(), "ACTIVE");
+            List<Customer> routeCustomers = new ArrayList<>();
+            if (!activeShifts.isEmpty()) {
+                routeCustomers.addAll(customerRepository.findByRouteIdOrderByRouteSequenceAsc(activeShifts.get(0).getRoute().getId()));
+            }
 
-            if (activeShifts.isEmpty()) return ResponseEntity.ok(List.of());
+            // 2. Get customers directly assigned to this agent
+            List<Customer> directCustomers = customerRepository.findByAssignedAgentIdAndTenantId(agent.getId(), agent.getTenant().getId());
 
-            // Get customers for the first route found
-            List<Customer> routeCustomers = customerRepository.findByRouteIdOrderByRouteSequenceAsc(activeShifts.get(0).getRoute().getId());
+            // 3. Merge and deduplicate
+            List<Customer> allCustomers = new ArrayList<>();
+            java.util.Set<Long> customerIds = new java.util.HashSet<>();
+            for (Customer c : routeCustomers) {
+                if (customerIds.add(c.getId())) {
+                    allCustomers.add(c);
+                }
+            }
+            for (Customer c : directCustomers) {
+                if (customerIds.add(c.getId())) {
+                    allCustomers.add(c);
+                }
+            }
 
-            return ResponseEntity.ok(routeCustomers.stream().map(c -> {
+            return ResponseEntity.ok(allCustomers.stream().map(c -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", c.getId());
                 m.put("name", c.getName());
@@ -187,6 +204,7 @@ public class RouteController {
                 m.put("longitude", c.getLongitude());
                 m.put("phoneNumber", c.getPhoneNumber());
                 m.put("residentialAddress", c.getResidentialAddress());
+                m.put("routeSequence", c.getRouteSequence());
                 
                 // Safe Loan fetch
                 var loans = loanRepository.findByCustomerIdAndStatus(c.getId(), "ACTIVE");

@@ -50,7 +50,10 @@ public class DataSyncController {
     }
 
     @PostMapping("/import")
-    public ResponseEntity<?> importManualDrop(@RequestParam("file") MultipartFile file, @RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> importManualDrop(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "agentId", required = false) Long agentId,
+            @RequestHeader("Authorization") String authHeader) {
         try {
             Long tenantId = jwtService.extractTenantId(extractToken(authHeader));
             Tenant tenant = tenantRepository.findById(tenantId)
@@ -65,7 +68,7 @@ public class DataSyncController {
             Files.copy(file.getInputStream(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
             // Trigger import
-            DataSyncLog log = dataImportService.importTenantBankDrop(tenant, targetFile);
+            DataSyncLog log = dataImportService.importTenantBankDrop(tenant, targetFile, agentId);
             return ResponseEntity.ok(log);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

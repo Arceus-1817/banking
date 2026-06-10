@@ -117,4 +117,13 @@ public class NotificationService {
             System.err.println("❌ Failed to send WhatsApp to " + rawPhone + ": " + e.getMessage());
         }
     }
+
+    public boolean sendOTP(String toPhone, String otp) {
+        String msg = "Your PigmyPay verification code is: *" + otp + "*. Expires in 5 minutes.";
+        if (!twilioEnabled) {
+            System.out.println("⏩ [DEV LOG] TWILIO DISABLED - OTP for phone " + toPhone + " is: " + otp);
+            return true;
+        }
+        return sendTestWhatsApp(toPhone, msg);
+    }
 }

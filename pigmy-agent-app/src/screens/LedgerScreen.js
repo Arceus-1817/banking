@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'rea
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getLedgerStats } from '../database';
+import { useTranslation } from '../localization';
 
 export default function LedgerScreen() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState({ cash: 0, upi: 0, skipped: 0, collected: 0, totalAssigned: 0 });
   const [helpVisible, setHelpVisible] = useState(false);
   const isFocused = useIsFocused();
@@ -21,7 +23,7 @@ export default function LedgerScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Daily Ledger</Text>
+        <Text style={styles.headerTitle}>{t('ledger')}</Text>
         <TouchableOpacity onPress={() => setHelpVisible(true)} style={styles.helpBtn}>
           <Ionicons name="help-circle-outline" size={28} color="#D4AF37" />
         </TouchableOpacity>
@@ -36,12 +38,12 @@ export default function LedgerScreen() {
       <View style={styles.breakdownContainer}>
         <View style={styles.statBox}>
           <Ionicons name="cash-outline" size={24} color="#D4AF37" style={{marginBottom: 8}} />
-          <Text style={styles.statLabel}>Cash in Pocket</Text>
+          <Text style={styles.statLabel}>{t('filterCash')} in Pocket</Text>
           <Text style={styles.statValue}>₹{stats.cash}</Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: '#111C3D', borderColor: '#1F326D' }]}>
           <Ionicons name="phone-portrait-outline" size={24} color="#38bdf8" style={{marginBottom: 8}}/>
-          <Text style={styles.statLabel}>UPI Auto-Settled</Text>
+          <Text style={styles.statLabel}>{t('filterUpi')} Auto-Settled</Text>
           <Text style={styles.statValue}>₹{stats.upi}</Text>
         </View>
       </View>

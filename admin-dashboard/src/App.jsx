@@ -436,6 +436,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import AdminDashboard from './AdminDashboard';
 import SuperAdminDashboard from './SuperAdminDashboard';
 import AgentDashboard from './AgentDashboard';
+import PublicReceiptPage from './pages/PublicReceiptPage';
 import './index.css';
 
 import { api } from './api';
@@ -642,6 +643,7 @@ export default function App() {
             <AgentDashboard user={user} handleLogout={handleLogout} />
           </ProtectedRoute>
         } />
+        <Route path="/receipt/:txnId" element={<PublicReceiptPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

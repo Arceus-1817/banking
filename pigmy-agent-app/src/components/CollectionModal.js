@@ -4,8 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from '../localization';
 
 export default function CollectionModal({ visible, customer, onClose, onConfirm }) {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [txType, setTxType] = useState('SAVINGS');
   const [paymentMode, setPaymentMode] = useState('CASH');
@@ -132,7 +134,7 @@ export default function CollectionModal({ visible, customer, onClose, onConfirm 
 
               <View style={styles.qrActionRow}>
                 <TouchableOpacity style={styles.backToNumpadBtn} onPress={() => { triggerHaptic(); setShowQR(false); }}>
-                  <Text style={styles.backText}>BACK</Text>
+                  <Text style={styles.backText}>{t('cancel').toUpperCase()}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.confirmBtnHalf} onPress={submitTransaction}>
                   <Text style={styles.confirmText}>PAID: CONFIRM</Text>
@@ -143,7 +145,7 @@ export default function CollectionModal({ visible, customer, onClose, onConfirm 
             <>
               <View style={styles.toggleRow}>
                 <TouchableOpacity style={[styles.toggleBtn, txType === 'SAVINGS' && styles.toggleActive]} onPress={() => { triggerHaptic(); setTxType('SAVINGS'); }}>
-                  <Text style={[styles.toggleText, txType === 'SAVINGS' && styles.toggleTextActive]}>SAVINGS</Text>
+                  <Text style={[styles.toggleText, txType === 'SAVINGS' && styles.toggleTextActive]}>{t('ledger').toUpperCase()}</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
@@ -157,7 +159,7 @@ export default function CollectionModal({ visible, customer, onClose, onConfirm 
                   }}
                   disabled={!customer.activeMonthlyEmi || customer.activeMonthlyEmi <= 0}
                 >
-                  <Text style={[styles.toggleText, txType === 'EMI' && styles.toggleTextActive]}>MONTHLY EMI</Text>
+                  <Text style={[styles.toggleText, txType === 'EMI' && styles.toggleTextActive]}>{t('emiDue').toUpperCase()}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -179,18 +181,18 @@ export default function CollectionModal({ visible, customer, onClose, onConfirm 
                 )}
                 
                 <View style={{ flex: 1 }} />
-                <TouchableOpacity style={[styles.modeBtn, paymentMode === 'CASH' && styles.modeActive]} onPress={() => { triggerHaptic(); setPaymentMode('CASH'); }}><Text style={styles.modeText}>💵 CASH</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.modeBtn, paymentMode === 'UPI' && styles.modeActive]} onPress={() => { triggerHaptic(); setPaymentMode('UPI'); }}><Text style={styles.modeText}>📱 UPI</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.modeBtn, paymentMode === 'CASH' && styles.modeActive]} onPress={() => { triggerHaptic(); setPaymentMode('CASH'); }}><Text style={styles.modeText}>💵 {t('filterCash')}</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.modeBtn, paymentMode === 'UPI' && styles.modeActive]} onPress={() => { triggerHaptic(); setPaymentMode('UPI'); }}><Text style={styles.modeText}>📱 {t('filterUpi')}</Text></TouchableOpacity>
               </View>
 
               <View style={styles.numpad}>
-                {[['1','2','3'],['4','5','6'],['7','8','9'],['Skip','0','⌫']].map((row, rIdx) => (
+                {[['1','2','3'],['4','5','6'],['7','8','9'],[t('filterSkipped'),'0','⌫']].map((row, rIdx) => (
                   <View key={rIdx} style={styles.numRow}>
                     <TouchableOpacity 
-                      key={row[0]} style={[styles.numBtn, row[0] === 'Skip' && styles.skipBtn]} 
-                      onPress={() => row[0] === 'Skip' ? handleSkip() : handlePress(row[0])}
+                      key={row[0]} style={[styles.numBtn, row[0] === t('filterSkipped') && styles.skipBtn]} 
+                      onPress={() => row[0] === t('filterSkipped') ? handleSkip() : handlePress(row[0])}
                     >
-                      <Text style={[styles.numText, row[0] === 'Skip' && {color: '#ff4757', fontSize: 16}]}>{row[0]}</Text>
+                      <Text style={[styles.numText, row[0] === t('filterSkipped') && {color: '#ff4757', fontSize: 16}]}>{row[0]}</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity key={row[1]} style={styles.numBtn} onPress={() => handlePress(row[1])}>

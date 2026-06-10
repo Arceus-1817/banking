@@ -36,7 +36,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // 2. Open Authentication and Error endpoints
-                        .requestMatchers("/api/auth/**", "/error").permitAll()
+                        .requestMatchers("/api/auth/**", "/error", "/api/twilio/webhook", "/api/public/**").permitAll()
 
                         // 3. Lock down everything else to Authenticated Users
                         // (We removed /api/tenants since SuperAdminController handles it now)

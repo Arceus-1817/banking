@@ -33,6 +33,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query(value = "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE agent_id = :agentId AND DATE(transaction_date) = CURDATE() AND payment_mode = :paymentMode AND is_reversed = false", nativeQuery = true)
     BigDecimal calculateTodayTotal(@Param("agentId") Long agentId, @Param("paymentMode") String paymentMode);
 
+    // Calculate total amount collected today by the agent (all modes, non-reversed)
+    @Query(value = "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE agent_id = :agentId AND DATE(transaction_date) = CURDATE() AND is_reversed = false", nativeQuery = true)
+    BigDecimal calculateTodayTotalAmount(@Param("agentId") Long agentId);
+
     // 🚨 PERFORMANCE NATIVE QUERY: Count skipped customers for the agent's route today
     @Query(value = "SELECT COUNT(*) FROM transactions WHERE agent_id = :agentId AND DATE(transaction_date) = CURDATE() AND (transaction_category LIKE 'SKIPPED%' OR transaction_category = 'CLOSURE_REQUESTED')", nativeQuery = true)
     Integer countTodaySkips(@Param("agentId") Long agentId);

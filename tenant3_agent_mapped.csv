@@ -1,0 +1,5 @@
+hq_customer_id,account_number,name,hq_loan_id,expected_daily_emi,principal_amount,total_amount_due,interest_rate,agent
+CUST-T3-3001,ACC-T3-3001,Amit Patil,LOAN-T3-3001,150.00,15000.00,18000.00,12.00,bbb@gmail.com
+CUST-T3-3002,ACC-T3-3002,Sunita Deshmukh,LOAN-T3-3002,200.00,20000.00,24000.00,12.00,bbb@gmail.com
+CUST-T3-3003,ACC-T3-3003,Rahul Shinde,LOAN-T3-3003,250.00,25000.00,30000.00,12.00,ccc@gmail.com
+CUST-T3-3004,ACC-T3-3004,Priyanka Joshi,LOAN-T3-3004,100.00,10000.00,12000.00,12.00,ccc@gmail.com

@@ -3,11 +3,14 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; // Built into Expo
 import * as Haptics from 'expo-haptics';
+import { useIsFocused } from '@react-navigation/native';
 import api, { updateBaseURL } from '../../api';
 import { saveRouteToLocal, getLocalRoute, getPendingSyncCount, saveOfflineTransaction, getPendingTransactions, markTransactionSynced, getDailyLog } from '../database';
 import CollectionModal from '../components/CollectionModal';
+import { useTranslation } from '../localization';
 
 export default function HomeScreen({ navigation }) {
+  const { t } = useTranslation();
   const [customers, setCustomers] = useState([]);
   const [agentName, setAgentName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +26,7 @@ export default function HomeScreen({ navigation }) {
 
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [tempUrl, setTempUrl] = useState('');
+  const isFocused = useIsFocused();
 
   const triggerHaptic = () => {
     try {
@@ -39,6 +43,9 @@ export default function HomeScreen({ navigation }) {
     setCustomers(localData);
     setPendingCount(getPendingSyncCount());
 
+    const isOfflineSim = await AsyncStorage.getItem('simulate_offline');
+    setOnlineStatus(isOfflineSim !== 'true');
+
     // Build the visited map from all SQLite pending sync table entries
     const logs = getDailyLog();
     const map = {};
@@ -53,7 +60,12 @@ export default function HomeScreen({ navigation }) {
   };
 
   useEffect(() => {
-    loadLocalData();
+    if (isFocused) {
+      loadLocalData();
+    }
+  }, [isFocused]);
+
+  useEffect(() => {
     AsyncStorage.getItem('backend_url').then(val => {
       setTempUrl(val || 'http://10.74.59.226:8085');
     });
@@ -69,6 +81,11 @@ export default function HomeScreen({ navigation }) {
   // 2. The 2-Way Enterprise Sync Engine
   const syncWithCloud = async () => {
     triggerHaptic();
+    const isOfflineSim = await AsyncStorage.getItem('simulate_offline');
+    if (isOfflineSim === 'true') {
+      Alert.alert("Sync Blocked", "Offline Simulation is active. Disable it in the Profile tab settings to connect to the cloud.");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -179,18 +196,18 @@ export default function HomeScreen({ navigation }) {
   const renderCustomer = ({ item }) => {
     const status = visitedMap[item.id];
     let badgeColor = '#718096';
-    let badgeText = 'PENDING';
+    let badgeText = t('filterPending').toUpperCase();
     let badgeBg = 'rgba(113, 128, 150, 0.1)';
     let badgeBorder = 'rgba(113, 128, 150, 0.2)';
     
     if (status === 'COLLECTED') {
       badgeColor = '#10b981';
-      badgeText = 'COLLECTED';
+      badgeText = t('filterCollected').toUpperCase();
       badgeBg = 'rgba(16, 185, 129, 0.1)';
       badgeBorder = 'rgba(16, 185, 129, 0.3)';
     } else if (status === 'SKIPPED') {
       badgeColor = '#ef4444';
-      badgeText = 'SKIPPED';
+      badgeText = t('filterSkipped').toUpperCase();
       badgeBg = 'rgba(239, 68, 68, 0.1)';
       badgeBorder = 'rgba(239, 68, 68, 0.3)';
     }
@@ -258,7 +275,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.accountNumber}>ACC: {item.accountNumber}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.balanceLabel}>Current Bal</Text>
+              <Text style={styles.balanceLabel}>{t('currentBalance')}</Text>
               <Text style={styles.balanceValue}>₹{item.currentBalance}</Text>
             </View>
           </View>
@@ -291,7 +308,7 @@ export default function HomeScreen({ navigation }) {
             <View style={[styles.statusPill, { backgroundColor: onlineStatus ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)' }]}>
               <View style={[styles.statusDot, { backgroundColor: onlineStatus ? '#10b981' : '#f59e0b' }]} />
               <Text style={[styles.statusPillText, { color: onlineStatus ? '#10b981' : '#f59e0b' }]}>
-                {onlineStatus ? 'ONLINE' : 'OFFLINE'}
+                {onlineStatus ? t('online') : t('offline')}
               </Text>
             </View>
           </View>
@@ -309,14 +326,14 @@ export default function HomeScreen({ navigation }) {
       {/* SYNC DASHBOARD */}
       <View style={styles.syncDashboard}>
         <View>
-          <Text style={styles.statLabel}>Pending Syncs</Text>
+          <Text style={styles.statLabel}>{t('pendingQueueLabel')}</Text>
           <Text style={styles.statValue}>{pendingCount} <Text style={{ fontSize: 12, color: '#718096' }}>txns</Text></Text>
         </View>
         <TouchableOpacity style={styles.syncBtn} onPress={syncWithCloud} disabled={loading}>
           {loading ? <ActivityIndicator color="#0A1128" /> : (
             <>
               <Ionicons name="cloud-download-outline" size={20} color="#0A1128" />
-              <Text style={styles.syncBtnText}>SYNC ROUTE</Text>
+              <Text style={styles.syncBtnText}>{t('syncNowBtn')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -327,7 +344,7 @@ export default function HomeScreen({ navigation }) {
         <Ionicons name="search-outline" size={18} color="#718096" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search name or account number..."
+          placeholder={t('searchPlaceholder')}
           placeholderTextColor="#4a5568"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -344,10 +361,10 @@ export default function HomeScreen({ navigation }) {
       {/* FILTER TABS */}
       <View style={styles.filterRow}>
         {[
-          { key: 'ALL', label: 'All' },
-          { key: 'PENDING', label: 'Pending' },
-          { key: 'VISITED', label: 'Collected' },
-          { key: 'SKIPPED', label: 'Skipped' }
+          { key: 'ALL', label: t('filterAll') },
+          { key: 'PENDING', label: t('filterPending') },
+          { key: 'VISITED', label: t('filterCollected') },
+          { key: 'SKIPPED', label: t('filterSkipped') }
         ].map(filter => {
           const isActive = activeFilter === filter.key;
           return (

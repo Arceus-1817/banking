@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-
-const BASE_URL = 'http://localhost:8085';
-const api = axios.create({ baseURL: BASE_URL });
+import { api } from './api';
 
 export default function AgentDashboard({ user, handleLogout }) {
   const [customers, setCustomers]           = useState([]);

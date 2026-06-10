@@ -23,4 +23,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     // LOGISTICS: For the Agent's mobile app route generation
     List<Customer> findByRouteIdOrderByRouteSequenceAsc(Long routeId);
+
+    // WHATSAPP SELF-SERVICE: Look up customer by telephone number
+    List<Customer> findByPhoneNumberContaining(String phoneNumber);
 }

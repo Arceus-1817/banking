@@ -7,6 +7,7 @@ export default function AddUserModal({ onClose, branches, authH, fetchAll, user 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState(''); // <-- NEW STATE
+  const [dailyCollectionLimit, setDailyCollectionLimit] = useState('40000');
   const [role, setRole] = useState('AGENT');
   const [branchId, setBranchId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,8 @@ export default function AddUserModal({ onClose, branches, authH, fetchAll, user 
     try {
       // 👇 Include phoneNumber in the payload 👇
       await axios.post('http://localhost:8085/api/users', {
-        name, email, password, phoneNumber, role, branchId, tenantId: user.tenantId || 1
+        name, email, password, phoneNumber, role, branchId, tenantId: user.tenantId || 1,
+        dailyCollectionLimit: dailyCollectionLimit ? parseFloat(dailyCollectionLimit) : 40000
       }, authH);
       fetchAll();
       onClose();
@@ -50,6 +52,11 @@ export default function AddUserModal({ onClose, branches, authH, fetchAll, user 
             <option value="MANAGER">Branch Manager</option>
             {user?.role === 'ADMIN' && <option value="ADMIN">Company Admin</option>}
           </select>
+
+          {role === 'AGENT' && (
+            <input required type="number" placeholder="Daily Collection Limit (₹)" value={dailyCollectionLimit} onChange={e => setDailyCollectionLimit(e.target.value)}
+              style={{ width:'100%', padding:12, marginBottom:12, background:G.surface, border:`1px solid ${G.border}`, color:'#fff', borderRadius:6 }} />
+          )}
 
           {(role === 'AGENT' || role === 'MANAGER') && (
             <select required value={branchId} onChange={e => setBranchId(e.target.value)} style={{ width:'100%', padding:12, marginBottom:24, background:G.surface, border:`1px solid ${G.border}`, color:'#fff', borderRadius:6 }}>
