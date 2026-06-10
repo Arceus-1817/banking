@@ -60,7 +60,7 @@ public class CustomerController {
                 return ResponseEntity.status(403).body("Access Denied: Agents should use the mobile endpoint.");
             }
 
-            return ResponseEntity.ok(mapCustomersForFrontend(customers));
+            return ResponseEntity.ok(mapCustomersForFrontend(customers, tenantId));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
@@ -77,7 +77,7 @@ public class CustomerController {
             if (activeShifts.isEmpty()) return ResponseEntity.ok(List.of());
 
             List<Customer> routeCustomers = customerRepository.findByRouteIdOrderByRouteSequenceAsc(activeShifts.get(0).getRoute().getId());
-            return ResponseEntity.ok(mapCustomersForFrontend(routeCustomers));
+            return ResponseEntity.ok(mapCustomersForFrontend(routeCustomers, tokenUser.getTenant().getId()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
@@ -90,7 +90,7 @@ public class CustomerController {
             User manager = userRepository.findByEmail(jwtService.extractUsername(extractToken(authHeader))).orElseThrow();
             if (manager.getBranch() == null) return ResponseEntity.ok(List.of());
             List<Customer> customers = customerRepository.findByAssignedAgentBranchId(manager.getBranch().getId());
-            return ResponseEntity.ok(mapCustomersForFrontend(customers));
+            return ResponseEntity.ok(mapCustomersForFrontend(customers, manager.getTenant().getId()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
@@ -322,8 +322,14 @@ public class CustomerController {
         }
     }
 
-    // ── HELPER: SERIALIZATION MAPPER (FIXED: includes kycStatus and all new fields) ──
-    private List<Map<String, Object>> mapCustomersForFrontend(List<Customer> customers) {
+    // ── HELPER: SERIALIZATION MAPPER (BATCH OPTIMIZED) ──
+    private List<Map<String, Object>> mapCustomersForFrontend(List<Customer> customers, Long tenantId) {
+        if (customers.isEmpty()) return List.of();
+
+        List<Loan> activeLoans = loanRepository.findByCustomerTenantIdAndStatus(tenantId, "ACTIVE");
+        Map<Long, Loan> activeLoansMap = activeLoans.stream()
+                .collect(Collectors.toMap(l -> l.getCustomer().getId(), l -> l, (l1, l2) -> l1));
+
         return customers.stream().map(c -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", c.getId());
@@ -365,10 +371,9 @@ public class CustomerController {
             map.put("longitude", c.getLongitude());
             map.put("riskStatus", c.getRiskStatus());
 
-            // Active Loan integration
-            List<Loan> activeLoans = loanRepository.findByCustomerIdAndStatus(c.getId(), "ACTIVE");
-            if (!activeLoans.isEmpty()) {
-                Loan l = activeLoans.get(0);
+            // Active Loan integration (Pre-mapped from batch query)
+            Loan l = activeLoansMap.get(c.getId());
+            if (l != null) {
                 map.put("activeLoan", Map.of(
                         "id", l.getId(),
                         "hqLoanId", l.getHqLoanId(),

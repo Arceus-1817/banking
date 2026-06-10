@@ -147,6 +147,33 @@ public class DataImportService {
                         throw new RuntimeException("Missing critical columns in CSV file. Headers detected: " + String.join(", ", headers));
                     }
 
+                    // In-memory caching for batch performance
+                    List<Customer> tenantCustomers = customerRepository.findByTenantId(tenant.getId());
+                    Map<String, Customer> customerMap = new java.util.HashMap<>();
+                    for (Customer c : tenantCustomers) {
+                        if (c.getHqCustomerId() != null) {
+                            customerMap.put(c.getHqCustomerId(), c);
+                        }
+                    }
+
+                    List<Loan> tenantLoans = loanRepository.findByCustomerTenantId(tenant.getId());
+                    Map<String, Loan> loanMap = new java.util.HashMap<>();
+                    for (Loan l : tenantLoans) {
+                        if (l.getHqLoanId() != null) {
+                            loanMap.put(l.getHqLoanId(), l);
+                        }
+                    }
+
+                    List<User> tenantUsers = userRepository.findByTenantId(tenant.getId());
+                    Map<Long, User> userByIdMap = new java.util.HashMap<>();
+                    Map<String, User> userByEmailMap = new java.util.HashMap<>();
+                    Map<String, User> userByEmpIdMap = new java.util.HashMap<>();
+                    for (User u : tenantUsers) {
+                        userByIdMap.put(u.getId(), u);
+                        if (u.getEmail() != null) userByEmailMap.put(u.getEmail().toLowerCase(), u);
+                        if (u.getAgentEmployeeId() != null) userByEmpIdMap.put(u.getAgentEmployeeId(), u);
+                    }
+
                     String[] line;
                     List<Loan> loanBatch = new ArrayList<>();
                     int totalProcessed = 0;
@@ -171,44 +198,50 @@ public class DataImportService {
                             try { dueToday = new BigDecimal(line[emiIdx].trim()); } catch (Exception e) {}
                         }
 
-                        // Resolve the agent to assign
+                        // Resolve the agent to assign using in-memory cache
                         User assignedAgent = null;
                         if (overrideAgentId != null) {
-                            assignedAgent = userRepository.findById(overrideAgentId).orElse(null);
+                            assignedAgent = userByIdMap.get(overrideAgentId);
                         } else {
                             Integer agentIdx = columnMap.get("agentIdentifier");
                             String agentIdentifier = (agentIdx != null && agentIdx < line.length) ? line[agentIdx].trim() : "";
                             if (!agentIdentifier.isEmpty()) {
                                 try {
                                     Long agentDbId = Long.parseLong(agentIdentifier);
-                                    assignedAgent = userRepository.findById(agentDbId).orElse(null);
+                                    assignedAgent = userByIdMap.get(agentDbId);
                                 } catch (NumberFormatException e) {
-                                    final String ident = agentIdentifier;
-                                    assignedAgent = userRepository.findByEmail(ident)
-                                            .orElseGet(() -> userRepository.findByAgentEmployeeIdAndTenantId(ident, tenant.getId()).orElse(null));
+                                    assignedAgent = userByEmailMap.get(agentIdentifier.toLowerCase());
+                                    if (assignedAgent == null) {
+                                        assignedAgent = userByEmpIdMap.get(agentIdentifier);
+                                    }
                                 }
                             }
                         }
 
-                        // Update or Create Customer
-                        Customer customer = customerRepository.findByHqCustomerIdAndTenantId(hqCustId, tenant.getId())
-                                .orElse(new Customer());
-                        customer.setHqCustomerId(hqCustId);
+                        // Update or Create Customer using in-memory cache
+                        Customer customer = customerMap.get(hqCustId);
+                        if (customer == null) {
+                            customer = new Customer();
+                            customer.setHqCustomerId(hqCustId);
+                            customer.setTenant(tenant);
+                        }
                         customer.setName(name);
                         customer.setAccountNumber(accNum);
-                        customer.setTenant(tenant);
                         customer.setStatus("ACTIVE");
                         if (assignedAgent != null && assignedAgent.getTenant().getId().equals(tenant.getId())) {
                             customer.setAssignedAgent(assignedAgent);
                         }
 
                         customer = customerRepository.save(customer);
+                        customerMap.put(customer.getHqCustomerId(), customer); // Add/update in cache
 
-                        // Update or Create the Loan
+                        // Update or Create the Loan using in-memory cache
                         if (!hqLoanId.isEmpty()) {
-                            Loan loan = loanRepository.findByHqLoanIdAndCustomerTenantId(hqLoanId, tenant.getId())
-                                    .orElse(new Loan());
-                            loan.setHqLoanId(hqLoanId);
+                            Loan loan = loanMap.get(hqLoanId);
+                            if (loan == null) {
+                                loan = new Loan();
+                                loan.setHqLoanId(hqLoanId);
+                            }
                             loan.setCustomer(customer);
                             loan.setExpectedMonthlyEmi(dueToday);
                             loan.setAmountPaidLocally(BigDecimal.ZERO); // Reset local tracker for the new day
@@ -249,6 +282,7 @@ public class DataImportService {
                             }
 
                             loanBatch.add(loan);
+                            loanMap.put(loan.getHqLoanId(), loan); // Update cache
                         }
 
                         if (loanBatch.size() >= BATCH_SIZE) {

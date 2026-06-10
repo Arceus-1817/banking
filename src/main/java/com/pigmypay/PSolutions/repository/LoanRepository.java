@@ -21,4 +21,7 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
 
     // DASHBOARD: General customer profile view
     List<Loan> findByCustomerId(Long customerId);
+
+    // BATCH PROCESSING: Fetch all loans for a tenant to avoid N+1 queries
+    List<Loan> findByCustomerTenantId(Long tenantId);
 }
